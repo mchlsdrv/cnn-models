@@ -1,0 +1,48 @@
+\begin{figure}
+    \centering
+    \includegraphics[width=0.5\textwidth]{figures/gui.jpg}
+    \caption{New GUI of the application}
+    \label{fig:gui}
+\end{figure}
+
+The GUI is divided into four sections, which correspond to different aspects of the system, viz. physical, image, smart search and image acquisition configurations, as shown in \cref{fig:gui}. \textbf{Physical Configurations} include controls, which are being changed through mechanical manipulations. All the configurations regarding the image (e.g., resolution, image quality etc.) are included in the \textbf{Image Configurations} section. The \textbf{Smart Search} section includes configurations which relate to the different methods and algorythms which are being employed at the core of the system. Finally, the \textbf{Image Acquisition Settings} relate to the specific way we want to receive the images which are being produced (e.g., where to save them, do we want to send them to the cloud etc.)
+
+\section{Physical Settings}
+\begin{itemize}
+
+    \item \setting{Sensor}{controls the sensor which we desire to use, viz. Scanning Electron Microscope (i.e., SEM) or the optical microscope (i.e., NavCam).}
+    \item \setting{Detector}{is an option (for SEM only) which switches between Secondary Electron Detector (i.e., SED) and BSD with all its options available in the corresponding drop-down list}
+    \item \setting{High Tension and Spot Size}{these are parameters which control the resolution of the acquired image. I.e., High Tension controls the number of electrons fired and Spot Size controls their dispersion, so to achieve the best resolution we should increase the High Tension and decrease the Spot Size}
+    \item \setting{Vacuum}{may be 1, 10 and 60 [Pascal], corresponding to High, Medium and Low vacuum in the sample chamber, where for the use of SED the high vacuum (i.e., 1 [Pascal]) should be obtained first, so it’s necessary to introduce an artificial delay when moving from NavCam to SEM.}
+    \item \setting{Area}{controls the area of the sample which is to be searched}
+    \item \setting{Sample Size }{ controls the sample size which is a factor which influences the movement of the beam when translating pixels into [meters], which represent locations on the sample. This setting is inherent to each sample and does not change in the course of the image acquisition process}
+\end{itemize}
+
+\section{Image Configurations}
+\begin{itemize}
+  \item \setting{Resolution}{which is symmetrical for width and height, e.g., when you choose 1024, the acquired image would be of resolution of 1MP, or 1024X1024}
+
+  \item \setting{Average Frames}{this option controls the number of frames which are taken in a burst and averaged each time an image is acquired (i.e., superresolution). Ranges between 1 to 16, and should enhance the image quality by eliminating artifacts which may appear in a single shot of the image. A clear tradeoff here is on the scale of speed - quality, i.e., the fewer frames we’d average each image acquisition the faster this acquisition will be, but the acquired image may suffer from a degraded image quality}
+
+  \item \setting{Magnification}{this setting controls the working magnification of the system, and should be set to suit the size of the particle which we are looking for, as in the process of the “Smart Search” the system will zoom-in the ROI locations zooming in it by this value}
+
+  \item \setting{Focus/Contrast/Brightness}{may be controlled manually, but pressing the “Calibrate” button instantly adjusts these parameters to the optimal values}
+
+\end{itemize}
+
+\section{Smart Search}
+\begin{itemize}
+  \item \setting{Stub Validation}{you can choose not to perform this step to save the time in time-constrained situations}
+
+  \item \setting{ROI Search Algorithm}{many algorithms may be used for this purpose, so this part is interchangeable, and the addition of new methods is made very easy, which constitutes around 4 changes in the code each time}
+
+\end{itemize}
+
+\section{Image Acquisition Settings}
+\begin{itemize}
+  \item \setting{Base Name}{as images will be shot in a burst setting, they are appended a running index, so the base name of each image (which will be shared between them) may be provided here}
+
+  \item \setting{File Type}{may be set to either tiff, jpg or bmp}
+
+  \item \setting{Bucket}{the images can be automatically placed in the s3 bucket by connecting to it}
+\end{itemize}

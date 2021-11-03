@@ -1,0 +1,35 @@
+\section{Overview}
+The \textbf{Algo} constitutes the core of the system, i.e., this is where all the search techniques are being employed, detections are being performed and decisions are being made. \textbf{Algo} bassically consists of two parts, viz. the \textbf{SmartSearch$^\copyright$} and the \textbf{Detector}
+
+\section{SmartSearch$^\copyright$}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/Smart Search.jpg}
+    \caption{Smart search schematic flow}
+    \label{fig:smart_search}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/summary_plot.png}
+    \caption{The experiments of the MCEC on 5 "good" and 20 "bad" stub images. As we see there is a clear decision boundery which may facilitate separating the stub images.}
+    \label{fig:mcec_sep_creterion}
+\end{figure}
+
+\subsection{Stub Validation}
+The purpose of this part is to gauge the quality of the stub, i.e., the potential information which may be extracted from it. If this measure is too low, it may indicate two things, viz. that the resolution of the microscope is suboptimal, or that the sample is flawed.
+
+We use the Mean Canny Edge Criterion (i.e., MCEC) to infere the amount of the information in the initial stub image. Thw procedure is very simple and is based on the assumption that usible information in the stub image should translate to morphological dissimilarities in the image, which in their turn may be represented as edges (i.e., high-gradient conturs) in the image. These contures are easily detected via well known techniques, such as laplacian or Canny edge detection. After marking the conturs found in the image with 1., while zeroing all the other pixels, we sum the pixels in one of the directions (i.e., height or width), and compute the mean and the standard deviation of the intensity sum. As may be seen in \ref{fig:mcec_sep_creterion} there is a clear separation between flawed and valida stub images. Sample acquisition is a slow and error prone process, and as such its repetition should be avoided, so first we’d try to improve the image quality by adjusting the resolution, which is controlled by the high-tension and the spot-size parameters. If after the adjustments to the resolution the validation still fails - we should instruct the user to replace the sample.
+
+\subsection{Region of Interest (ROI) Identification}
+Here we employ a 2-step technique to facilitate the search of the pathogen. As may be seen in \cref{fig:smart_search}, after we validate the stub, we divide the stub image into super-pixels, and in each one of them we look for dark regions (based on the “black-hole theory” of Charls), which are controlled by a threshold parameter. After we have received the pixel locations of the darker regions, i.e., “black-holes”, we zoom in this region, focus on the image and acquire it.
+
+\subsection{Auto-Focus}
+This is a crucial part of the whole system as the goal is the acquisition of the images of pathogens in a high magnification ($\sim80-100k$). There are two built-in options viz. PyPhenom.SemAutoFocus(), PyPhenom.Aplication.FineFocus() and custom made option, which just skips over magnifications. The autofocus algorithm should be further explored.
+
+\section{Detector}
+The detector will be trained via an \textbf{Auto-Labeling} technique \cite{van2020scan}. The technique described in \cite{van2020scan} is comprised of two separate stages, viz. \emph{feature extraction} and \emph{label assignment}, where the first stage is meant to extract the most dominant features from the images, and the second to group simmilar images together.
+
+We begin by teaching the first CNN on a pretext task $\tau$, te get priors and extract "strong" morphological features from the images. As we teach the network in an \emph{unsipervised} manner, we don't have labels to rely on to know when we are correct and when we are wrong, so we have to let the network figure out what features to search for, and which images should be grouped together. One obstacle which may present itself in this situation is network learning useless features (e.g., separate pixel values etc.). To avoid this obstacle, and make the model more robust, we train it on images together with their augmentations and try to minimize the regular loss of semantic learning techniques, $\tau$, together with the distanse of the original image and its' multiple augmentations. The idea behind this technique is that the network should learn features which don't change under simple augmentations.
+
+After we have acheived the goal of clustering morphologically simillar images together, we proceed to the next step of training a separate CNN to label the similar images correctly. This is done by

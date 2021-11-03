@@ -1,0 +1,8 @@
+PWD D:/Projects/NanoScout/chapters/user_interface
+INPUT c:/texlive/2021/texmf.cnf
+INPUT c:/texlive/2021/texmf-dist/web2c/texmf.cnf
+INPUT c:/texlive/2021/texmf-var/web2c/pdftex/pdflatex.fmt
+INPUT user_interface.tex
+OUTPUT user_interface.log
+INPUT c:/texlive/2021/texmf-dist/fonts/map/fontname/texfonts.map
+INPUT c:/texlive/2021/texmf-dist/fonts/tfm/public/cm/cmbx10.tfm

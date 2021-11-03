@@ -1,0 +1,68 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.1 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\datalist[entry]{ynt/global//global/global}
+  \entry{van2020scan}{inproceedings}{}
+    \name{author}{5}{}{%
+      {{hash=VGW}{%
+         family={Van\bibnamedelima Gansbeke},
+         familyi={V\bibinitperiod\bibinitdelim G\bibinitperiod},
+         given={Wouter},
+         giveni={W\bibinitperiod},
+      }}%
+      {{hash=VS}{%
+         family={Vandenhende},
+         familyi={V\bibinitperiod},
+         given={Simon},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=GS}{%
+         family={Georgoulis},
+         familyi={G\bibinitperiod},
+         given={Stamatios},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=PM}{%
+         family={Proesmans},
+         familyi={P\bibinitperiod},
+         given={Marc},
+         giveni={M\bibinitperiod},
+      }}%
+      {{hash=VGL}{%
+         family={Van\bibnamedelima Gool},
+         familyi={V\bibinitperiod\bibinitdelim G\bibinitperiod},
+         given={Luc},
+         giveni={L\bibinitperiod},
+      }}%
+    }
+    \list{organization}{1}{%
+      {Springer}%
+    }
+    \strng{namehash}{VGWVSGSPMVGL1}
+    \strng{fullhash}{VGWVSGSPMVGL1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{2}
+    \field{sortinithash}{2}
+    \field{booktitle}{European Conference on Computer Vision}
+    \field{pages}{268\bibrangedash 285}
+    \field{title}{Scan: Learning to classify images without labels}
+    \field{year}{2020}
+  \endentry
+\enddatalist
+\endinput

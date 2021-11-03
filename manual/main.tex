@@ -1,0 +1,117 @@
+\documentclass[12pt]{report}
+
+%% Packages
+\usepackage[a4paper, width=150mm]{geometry}
+\usepackage{fancyhdr}
+% Make the title look better
+\pagestyle{fancy}
+\fancyhf{}
+% Center the page number
+\fancyhead[C,CO]{\thepage}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{subfig}
+\usepackage{babel}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{cleveref}
+\usepackage{amssymb}
+\usepackage[shortlabels]{enumitem}
+\usepackage[toc, page]{appendix}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\graphicspath{{./figures/}}
+\usepackage[style=ACM-Reference-Format,backend=bibtex,sorting=ynt]{biblatex}
+\addbibresource{references.bib}
+
+%% Colors
+%% - Reds
+\definecolor{maroon}{RGB}{205,92,92}
+\definecolor{indianred}{RGB}{128, 0, 0}
+\definecolor{lightcoral}{RGB}{240, 128, 128}
+\definecolor{lightsalmon}{RGB}{250, 128, 114}
+\definecolor{salmon}{RGB}{233, 150, 122}
+\definecolor{darksalmon}{RGB}{255, 160, 122}
+\definecolor{hotpink}{RGB}{255, 105, 180}
+\definecolor{brick}{RGB}{132, 31, 39}
+
+%% - Blues
+\definecolor{navy}{RGB}{0, 0, 128}
+\definecolor{teal}{RGB}{0, 128, 128}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+\definecolor{purple}{RGB}{128, 0, 128}
+
+%% - Greens
+\definecolor{green}{RGB}{128, 128, 0}
+\definecolor{olive}{RGB}{0, 128, 0}
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+
+%% - Grays
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+
+
+\lstset{frame=tb,
+  language=Python,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
+%% Chapter commands
+\newcommand{\setting}[2]{\textcolor{indianred}{\bf #1} - {#2}}
+
+\newcommand{\bugfix}[2]{\textcolor{brick}{BUG:}\\{- \bf#1}\\\textcolor{green}{FIX:}\\{- #2}}
+\newcommand{\shellcmd}[2]{\textcolor{maroon}{\bf $>$ #1} - {#2}}
+\newcommand{\package}[2]{\textcolor{olive}{\bf #1} - {#2}}
+\newcommand{\theme}[2]{\textcolor{teal}{\bf #1} - {#2}}
+\newcommand{\linuxsys}[2]{\textcolor{darksalmon}{\bf #1} - {#2}}
+\newcommand{\ubuntusrtcut}[2]{\textcolor{red}{\bf #1} - {#2}}
+\newcommand{\muxcmd}[2]{\textcolor{purple}{\bf #1} - {#2}}
+\newcommand{\versioncmd}[2]{\textcolor{hotpink}{\bf #1} - {#2}}
+\newcommand{\lineitem}[2]{\textcolor{salmon}{\bf #1} - {#2}}
+\newcommand{\sublineitem}[2]{\textcolor{lightsalmon}{\bf #1} - {#2}}
+
+%% General commands
+\newcommand{\example}[1]{\textcolor{blue}{\emph{#1}}}
+\newcommand{\stress}[1]{\textcolor{green}{\emph{#1}}}
+\newcommand{\replaceable}[1]{\textcolor{gray}{\emph{#1}}}
+\newcommand{\note}[1]{\textcolor{navy}{\emph{#1}}}
+
+\title{NanoScout}
+\begin{document}
+\author{by Michael Sidorov}
+
+
+\maketitle
+
+\pagenumbering{roman}
+\setcounter{page}{2}
+\tableofcontents
+\clearpage
+
+\pagenumbering{arabic}
+\setcounter{page}{3}
+
+\chapter{Introduction}
+\input{chapters/introduction/introduction}
+
+\chapter{Graphical User Interface (GUI)}
+\input{chapters/user_interface/user_interface}
+
+\chapter{Algo}
+\input{chapters/algo/algo}
+
+\printbibliography
+\end{document}
