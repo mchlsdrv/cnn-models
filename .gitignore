@@ -10,6 +10,10 @@ __pycache__/
 *.pickle
 *.npy
 
+# tf
+*.gz
+*.pb
+
 # logs
 *.v2
 
