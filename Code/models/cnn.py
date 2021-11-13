@@ -34,6 +34,7 @@ class ConvModel(keras.Model):
         return self.model.summary()
 
 
+# noinspection PyUnusedLocal
 class ResNet(keras.Model):
     class ResBlock(keras.Model):
         def __init__(self, filters: tuple, kernel_sizes: tuple, strides: tuple = ((1, 1), (1, 1)), activations: tuple = ('relu', 'relu'), paddings: tuple = ('same', 'same'), dilation_rates: tuple = ((1, 1), (1, 1))):
@@ -59,6 +60,7 @@ class ResNet(keras.Model):
             # III) - Output conv layer
             self.model.add(layers.Conv2D(filters[1], 1, padding='same'))
 
+        # noinspection PyUnusedLocal
         def call(self, inputs, training=False):
             X = self.model(inputs)
             # > Skip connection
@@ -127,7 +129,7 @@ class ResNet(keras.Model):
 
 
 class FeatureExtractionResNet(ResNet):
-    def __init__(self, net_configs: dict, augmentations: list, similarity_loss= tf.keras.losses.Loss):
+    def __init__(self, net_configs, augmentations, similarity_loss: tf.keras.losses.Loss):
         super().__init__(net_configs=net_configs)
         print(net_configs)
         self.net_configs = net_configs
@@ -136,8 +138,9 @@ class FeatureExtractionResNet(ResNet):
         self.model = keras.Sequential()
         self.build_net()
 
+    # noinspection PyCallingNonCallable
     def train_step(self, data):
-        # Get the image only (the labele is irrelevant)
+        # Get the image only (the label is irrelevant)
         X, y = data
 
         with tf.GradientTape() as tape:
@@ -150,8 +153,8 @@ class FeatureExtractionResNet(ResNet):
 
             # The loss is made of two parts:
             # 1) The cross entropy loss of the crop to its' label (i.e., the image from which it was taken), which extracts features from teh image
-            # 2) If the original images' latent representation is closs to the augmented version, which is measured via the cosine clossenes loss.
-            # This part makes sure that only "stong" features will be extracted
+            # 2) If the original images' latent representation is clos to the augmented version, which is measured via the cosine closeness loss.
+            # This part makes sure that only "strong" features will be extracted
             loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses) + self.similarity_loss(y_pred, y_aug_pred)
 
         # Calculate gradients
@@ -166,4 +169,3 @@ class FeatureExtractionResNet(ResNet):
 
         # Return the mapping metric names to current value
         return {m.name: m.result() for m in self.metrics}
-
