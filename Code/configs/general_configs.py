@@ -3,13 +3,22 @@ import cv2
 from matplotlib import pyplot as plt
 
 DEBUG = False
-DATA_PATH = Path('C:\\Users\\mchls\\Desktop\\Projects\\Data')
-TRAIN_DATA_PATH = DATA_PATH / 'antrax/train/10,000x - 48'
+DATA_DIR_PATH = Path('../Data')
+TRAIN_DATA_DIR_PATH = DATA_DIR_PATH / 'antrax/train/10,000x - 41'
+OUTPUT_DIR_PATH = Path('../Output')
 CONFIGS_DIR_PATH = Path('./configs')
 
 # PREPROCESSING CONFIGS
 # - Determines the height of the bar (in pixels) which should be removed from each image
 BAR_HEIGHT = 70  # pix
+
+# CALLBACKS
+LOG_INTERVAL = 10
+EARLY_STOPPING_PATIENCE = 10
+LR_REDUCE_FACTOR = 0.1
+LR_REDUCE_PATIENCE = 10
+LAYER_VIZ_FIG_SIZE = (25, 25)
+LAYER_VIZ_CMAP = 'gray'
 
 # AUGMENTATION CONFIGS
 BRIGHTNESS_DELTA = 0.1

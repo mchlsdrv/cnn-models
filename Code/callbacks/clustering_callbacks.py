@@ -1,3 +1,4 @@
+import os
 import datetime as dt
 from pathlib import Path
 import numpy as np
@@ -6,9 +7,15 @@ from tensorflow import keras
 import matplotlib.pyplot as plt
 from aux_code import aux_funcs
 
-LOG_INTERVAL = 10
-EXEC_DIR = Path(f'./{dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}')
-LOGS_DIR = EXEC_DIR / f'logs'
+
+from configs.general_configs import (
+    LOG_INTERVAL,
+    EARLY_STOPPING_PATIENCE,
+    LR_REDUCE_FACTOR,
+    LR_REDUCE_PATIENCE,
+    LAYER_VIZ_FIG_SIZE,
+    LAYER_VIZ_CMAP,
+)
 
 
 class ConvLayerVis(keras.callbacks.Callback):
@@ -17,6 +24,15 @@ class ConvLayerVis(keras.callbacks.Callback):
         self.X_test = X
         self.input_layer = input_layer
         self.layers = layers
+        self.log_dir = log_dir
+
+        plt.imshow(self.X_test, cmap='gray')
+        test_image_dir = Path(self.log_dir) / 'test_images'
+        if not test_image_dir.is_dir():
+            os.makedirs(test_image_dir)
+        plt.savefig(test_image_dir / 'test_img.png')
+
+        self.tensor_board_th = None
         n_dims = len(self.X_test.shape)
         assert 2 < n_dims < 5, f'The shape of the test image should be less than 5 and grater than 2, but current shape is {self.X_test.shape}'
 
@@ -24,7 +40,7 @@ class ConvLayerVis(keras.callbacks.Callback):
         if len(self.X_test.shape) < 4:
             self.X_test = np.reshape(self.X_test, (1,) + self.X_test.shape)
 
-        self.file_writer = tf.summary.create_file_writer(log_dir)
+        self.file_writer = tf.summary.create_file_writer(self.log_dir)
         self.figure_configs = figure_configs
         self.log_interval = log_interval
 
@@ -34,6 +50,7 @@ class ConvLayerVis(keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         # 1) Get the layers
         if epoch % self.log_interval == 0:
+            print(f'\nSaving conv layer images of epoch #{epoch} to: \'{self.log_dir}\'...')
             # 1) Get the layers
             output_layer_tuples = [(idx, layer) for idx, layer in enumerate(self.layers) if aux_funcs.find_sub_string(layer.name, 'conv2d') or aux_funcs.find_sub_string(layer.name, 'max_pooling2d')]
             output_layers = [layer_tuple[1].output for layer_tuple in output_layer_tuples]
@@ -50,7 +67,6 @@ class ConvLayerVis(keras.callbacks.Callback):
             # 3) Build partial model
             partial_model = keras.Model(
                 inputs=self.input_layer,
-                # inputs=model.model.input,
                 outputs=output_layers
             )
 
@@ -58,38 +74,45 @@ class ConvLayerVis(keras.callbacks.Callback):
             feature_maps = partial_model.predict(self.X_test)
 
             # 5) Plot
-            rows, cols = self.figure_configs.get('rows'), self.figure_configs.get('cols')
             for feature_map, layer_name in zip(feature_maps, layer_names):
+                num_feat_maps = feature_map.shape[3]
+                rows = cols = np.ceil(num_feat_maps ** 0.5).astype(np.int8)
+
                 fig, ax = plt.subplots(rows, cols, figsize=self.figure_configs.get('figsize'))
+
                 for row in range(rows):
                     for col in range(cols):
+                        feat_map_idx = row + col
+                        if feat_map_idx >= num_feat_maps:
+                            break
                         ax[row][col].imshow(feature_map[0, :, :, row+col], cmap=self.figure_configs.get('cmap'))
                 fig.suptitle(f'{layer_name}')
 
                 with self.file_writer.as_default():
                     tf.summary.image(f'{layer_name} Feature Maps', aux_funcs.get_image_from_figure(figure=fig), step=epoch)
 
+            if self.tensor_board_th is None:
+                print(f'Launching a Tensor Board thread on logdir: \'{self.log_dir}\'...')
+                self.tensor_board_th = aux_funcs.launch_tensor_board(logdir=self.log_dir)
 
-def get_callbacks(model, X):
+
+def get_callbacks(model, X, log_dir):
     callbacks = [
         # -------------------
         # Built-in  callbacks
         # -------------------
         keras.callbacks.TensorBoard(
-            log_dir=LOGS_DIR,
-            histogram_freq=10,
+            log_dir=log_dir,
             write_graph=True,
             write_images=True,
             write_steps_per_second=True,
             update_freq='epoch',
-            profile_batch=10,
-            embeddings_freq=10,
-            embeddings_metadata=None,
+            embeddings_freq=LOG_INTERVAL,
         ),
         tf.keras.callbacks.EarlyStopping(
             monitor='val_loss',
             min_delta=0,
-            patience=10,
+            patience=EARLY_STOPPING_PATIENCE,
             mode='auto',
             restore_best_weights=True,
             verbose=1,
@@ -97,8 +120,8 @@ def get_callbacks(model, X):
         tf.keras.callbacks.TerminateOnNaN(),
         tf.keras.callbacks.ReduceLROnPlateau(
             monitor='val_loss',
-            factor=0.1,
-            patience=10,
+            factor=LR_REDUCE_FACTOR,
+            patience=LR_REDUCE_PATIENCE,
             verbose=1,
             mode='auto',
             min_delta=0.0001,
@@ -114,12 +137,11 @@ def get_callbacks(model, X):
             input_layer=model.model.input,
             layers=model.model.layers,
             figure_configs=dict(
-                rows=5,
-                cols=5,
-                figsize=(25, 25),
-                cmap='gray',
+                figsize=LAYER_VIZ_FIG_SIZE,
+                cmap=LAYER_VIZ_CMAP,
              ),
-            log_dir=f'{LOGS_DIR}/train',
+            log_dir=f'{log_dir}/train',
             log_interval=LOG_INTERVAL
         )
     ]
+    return callbacks

@@ -33,6 +33,9 @@ class ConvModel(keras.Model):
     def summary(self):
         return self.model.summary()
 
+    def save(self, save_path):
+        self.model.save(save_path)
+
 
 # noinspection PyUnusedLocal
 class ResNet(keras.Model):
@@ -78,6 +81,9 @@ class ResNet(keras.Model):
                 )
 
             return self.activation(X)
+
+        def save(self, save_path):
+            self.model.save(save_path)
 
     def __init__(self, net_configs: dict):
         super().__init__()
@@ -127,6 +133,8 @@ class ResNet(keras.Model):
     def summary(self):
         return self.model.summary()
 
+    def save(self, save_path):
+        self.model.save(save_path)
 
 class FeatureExtractionResNet(ResNet):
     def __init__(self, net_configs, augmentations, similarity_loss: tf.keras.losses.Loss):

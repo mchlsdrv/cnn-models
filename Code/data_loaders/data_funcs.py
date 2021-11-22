@@ -2,13 +2,9 @@ import numpy as np
 import tensorflow as tf
 import cv2
 
-from Code.configs.general_configs import (
-    # INPUT_IMAGE_SHAPE,
-    TRAIN_DATA_PATH,
+from configs.general_configs import (
+    TRAIN_DATA_DIR_PATH,
     BAR_HEIGHT,
-    # BATCH_SIZE,
-    # CROP_SHAPE,
-    # VAL_PROP,
 )
 
 
@@ -30,7 +26,7 @@ def load_image(image_file):
     img = _preprocessing_func(image=img)
     img = tf.cast(img, tf.float32)
     # 3) Get the label
-    label = tf.strings.split(image_file, "\\")[-1]
+    label = tf.strings.split(image_file, "/")[-1]
 
     label = tf.strings.substr(label, pos=0, len=1)
     label = tf.strings.to_number(label, out_type=tf.float32)
@@ -65,7 +61,7 @@ def get_dataset_from_tiff(input_image_shape, batch_size, validation_split):
     VAL_PROP = validation_split
 
     # 1) Create the global dataset
-    train_ds = tf.data.Dataset.list_files(str(TRAIN_DATA_PATH / '*.tiff'))
+    train_ds = tf.data.Dataset.list_files(str(TRAIN_DATA_DIR_PATH / '*.tiff'))
     n_samples = train_ds.cardinality().numpy()
     print(f'- Number of train samples: {n_samples}')
 

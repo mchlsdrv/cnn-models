@@ -1,0 +1,76 @@
+conv2d_1:
+  filters: 64
+  kernel_size: [3, 3]
+  strides: [1, 1]
+  dilation_rate: [1, 1]
+  activation: 'relu'
+  padding: 'same'
+
+conv2d_2:
+  filters: 64
+  kernel_size: [3, 3]
+  strides: [1, 1]
+  dilation_rate: [1, 1]
+  activation: 'relu'
+  padding: 'same'
+
+max_pool_2d:
+  pool_size: [3, 3]
+  strides: [1, 1]
+
+
+res_blocks:
+  conv2_block_configs:
+    n_blocks: 2
+    block_configs:
+      filters: [64, 64]
+      kernel_sizes: [[3, 3], [3, 3]]
+      strides: [[1, 1], [1, 1]]
+      dilation_rates: [[1, 1], [1, 1]]
+      activations: ['relu', 'relu']
+      paddings: ['same', 'same']
+
+  conv3_block_configs:
+    n_blocks: 2
+    block_configs:
+      filters: [64, 64]
+      kernel_sizes: [[3, 3], [3, 3]]
+      strides: [[1, 1], [1, 1]]
+      dilation_rates: [[1, 1], [1, 1]]
+      activations: ['relu', 'relu']
+      paddings: ['same', 'same']
+
+  conv4_block_configs:
+    n_blocks: 2
+    block_configs:
+      filters: [64, 64]
+      kernel_sizes: [[3, 3], [3, 3]]
+      strides: [[1, 1], [1, 1]]
+      dilation_rates: [[1, 1], [1, 1]]
+      activations: ['relu', 'relu']
+      paddings: ['same', 'same']
+
+  conv5_block_configs:
+    n_blocks: 2
+    block_configs:
+      filters: [64, 64]
+      kernel_sizes: [[3, 3], [3, 3]]
+      strides: [[1, 1], [1, 1]]
+      dilation_rates: [[1, 1], [1, 1]]
+      activations: ['relu', 'relu']
+      paddings: ['same', 'same']
+
+conv2d_3:
+  filters: 512
+  kernel_size: [3, 3]
+  strides: [1, 1]
+  dilation_rate: [1, 1]
+  activation: 'relu'
+  padding: 'same'
+
+dense_layer:
+  units: 256
+  activation: 'relu'
+
+dropout_layer:
+  rate: 0.5
