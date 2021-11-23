@@ -1,7 +1,9 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-
+import numpy as np
+import pandas as pd
+from losses.clustering_losses import SCANLoss
 
 class ConvModel(keras.Model):
 
@@ -37,7 +39,6 @@ class ConvModel(keras.Model):
         self.model.save(save_path)
 
 
-# noinspection PyUnusedLocal
 class ResNet(keras.Model):
     class ResBlock(keras.Model):
         def __init__(self, filters: tuple, kernel_sizes: tuple, strides: tuple = ((1, 1), (1, 1)), activations: tuple = ('relu', 'relu'), paddings: tuple = ('same', 'same'), dilation_rates: tuple = ((1, 1), (1, 1))):
@@ -136,6 +137,7 @@ class ResNet(keras.Model):
     def save(self, save_path):
         self.model.save(save_path)
 
+
 class FeatureExtractionResNet(ResNet):
     def __init__(self, net_configs, augmentations, similarity_loss: tf.keras.losses.Loss):
         super().__init__(net_configs=net_configs)
@@ -146,9 +148,7 @@ class FeatureExtractionResNet(ResNet):
         self.model = keras.Sequential()
         self.build_net()
 
-    # noinspection PyCallingNonCallable
     def train_step(self, data):
-        # Get the image only (the label is irrelevant)
         X, y = data
 
         with tf.GradientTape() as tape:
@@ -164,6 +164,52 @@ class FeatureExtractionResNet(ResNet):
             # 2) If the original images' latent representation is clos to the augmented version, which is measured via the cosine closeness loss.
             # This part makes sure that only "strong" features will be extracted
             loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses) + self.similarity_loss(y_pred, y_aug_pred)
+
+        # Calculate gradients
+        trainable_vars = self.trainable_variables
+        gradients = tape.gradient(loss, trainable_vars)
+
+        # Update weights
+        self.optimizer.apply_gradients(zip(gradients, trainable_vars))
+
+        # Update the metrics
+        self.compiled_metrics.update_state(y, y_pred)
+
+        # Return the mapping metric names to current value
+        return {m.name: m.result() for m in self.metrics}
+
+
+class LabelingResNet(ResNet):
+    def __init__(self, net_configs: dict, priors: pd.DataFrame, augmentations):
+        super().__init__(net_configs=net_configs)
+        print(net_configs)
+        self.net_configs = net_configs
+        self.augmentations = augmentations
+        self.priors = priors
+        self.loss = SCANLoss()
+        self.model = keras.Sequential()
+        self.build_net()
+
+    # noinspection PyCallingNonCallable
+    def train_step(self, data):
+        # Get the image only (the label is irrelevant)
+        X, y = data
+
+        with tf.GradientTape() as tape:
+
+            # Run the original image through the network
+            y_pred = self(self.augmentations(X), training=True)
+
+            # Get the neighbors of X, i.e., the N_k set, and calculate the loss
+            N_x = self.embedings.loc[self.embedings.loc[:, 'image'] == X]
+            for k in N_x:
+                k_pred = self(self.augmentations(k), training=True)
+                loss += self.loss(y, k_pred)
+
+            # The loss is made of two parts:
+            # 1) The cross entropy loss of the crop to its' label (i.e., the image from which it was taken), which extracts features from teh image
+            # 2) If the original images' latent representation is clos to the augmented version, which is measured via the cosine closeness loss.
+            # This part makes sure that only "strong" features will be extracted
 
         # Calculate gradients
         trainable_vars = self.trainable_variables

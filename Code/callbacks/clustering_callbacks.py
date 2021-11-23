@@ -15,6 +15,10 @@ from configs.general_configs import (
     LR_REDUCE_PATIENCE,
     LAYER_VIZ_FIG_SIZE,
     LAYER_VIZ_CMAP,
+    # LOG_DIR_PATH,
+    OUTPUT_DIR_PATH,
+    # CHECKPOINT_DIR_PATH,
+    CHECKPOINT_FREQUENCY
 )
 
 
@@ -96,13 +100,13 @@ class ConvLayerVis(keras.callbacks.Callback):
                 self.tensor_board_th = aux_funcs.launch_tensor_board(logdir=self.log_dir)
 
 
-def get_callbacks(model, X, log_dir):
+def get_callbacks(model, X, ts):
     callbacks = [
         # -------------------
         # Built-in  callbacks
         # -------------------
         keras.callbacks.TensorBoard(
-            log_dir=log_dir,
+            log_dir=OUTPUT_DIR_PATH / f'{ts}/logs',
             write_graph=True,
             write_images=True,
             write_steps_per_second=True,
@@ -126,9 +130,14 @@ def get_callbacks(model, X, log_dir):
             mode='auto',
             min_delta=0.0001,
             cooldown=0,
-            min_lr=0,
+            min_lr=0.0,
         ),
-
+        tf.keras.callbacks.ModelCheckpoint(
+            filepath=(OUTPUT_DIR_PATH / f'{ts}/checkpoints') / 'cp-{epoch:04d}.ckpt',
+            verbose=1,
+            save_weights_only=True,
+            save_freq=CHECKPOINT_FREQUENCY
+        ),
         # -----------------
         # Custom callbacks
         # -----------------
@@ -140,7 +149,7 @@ def get_callbacks(model, X, log_dir):
                 figsize=LAYER_VIZ_FIG_SIZE,
                 cmap=LAYER_VIZ_CMAP,
              ),
-            log_dir=f'{log_dir}/train',
+            log_dir=f'{OUTPUT_DIR_PATH}/{ts}/logs/train',
             log_interval=LOG_INTERVAL
         )
     ]
