@@ -1,8 +1,46 @@
 import os
+from pathlib import Path
 import io
 import threading
 import tensorflow as tf
+import numpy as np
+import pandas as pd
+from sklearn.neighbors import NearestNeighbors
 import matplotlib.pyplot as plt
+import cv2
+
+
+def get_patch_df(image_file, patch_height, patch_width):
+    assert image_file.is_file(), f'No file \'{image_file}\' was found!'
+
+    img = np.expand_dims(cv2.imread(str(image_file), cv2.IMREAD_GRAYSCALE), axis=-1)
+    df = pd.DataFrame(columns=['file', 'image'])
+    img_h, img_w, _ = img.shape
+    for h in range(0, img_h, patch_height):
+        for w in range(0, img_w, patch_width):
+            patch = img[h:h+patch_height, w:w+patch_width, :]
+            if patch.shape[0] == patch_height and patch.shape[1] == patch_width:
+                df = df.append(dict(file=image_file, image=patch), ignore_index=True)
+    return df
+
+
+def transform_images(images_root_dir, model, patch_height, patch_width):
+    df = pd.DataFrame(columns=['file', 'image'])
+    for root, dirs, files in os.walk(images_root_dir):
+        for file in files:
+            df = df.append(get_patch_df(image_file=Path(f'{root}/{file}'), patch_height=patch_height, patch_width=patch_width), ignore_index=True)
+    df.loc[:, 'vector'] = df.loc[:, 'image'].apply(lambda x: model(np.expand_dims(x, axis=0)) if len(x.shape) < 4 else model(x))
+    return df
+
+
+def get_knn_files(X, files, k):
+    # Detect the k nearest neighbors
+    nbrs_pred = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X)
+    nbrs_files = list()
+    for idx, (file, x) in enumerate(zip(files, X)):
+        _, nbrs_idxs = nbrs_pred.kneighbors(np.expand_dims(x, axis=0))
+        nbrs_files.append(files[nbrs_idxs])
+    return nbrs_files
 
 
 def find_sub_string(string: str, sub_string: str):
@@ -31,11 +69,10 @@ def get_image_from_figure(figure):
     return image
 
 
-def launch_tb(log_dir):
-    os.system(f'tensorboard --logdir={log_dir}')
-
-    th = threading.Thread(
-        target=lambda logdir: os.system(f'tensorboard --logdir={logdir}'),
+def launch_tensor_board(logdir):
+    tensorboard_th = threading.Thread(
+        target=lambda: os.system(f'tensorboard --logdir={logdir}'),
         daemon=True
     )
-    th.start()
+    tensorboard_th.start()
+    return tensorboard_th

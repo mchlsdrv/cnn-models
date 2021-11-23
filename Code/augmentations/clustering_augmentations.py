@@ -1,7 +1,11 @@
 import tensorflow as tf
 
-BRIGHTNESS_DELTA = 0.1
-CONTRAST = [0.4, 0.6]
+
+from configs.general_configs import (
+    BRIGHTNESS_DELTA,
+    CONTRAST
+)
+
 
 def augmentations(image):
     img = tf.image.random_brightness(image, max_delta=BRIGHTNESS_DELTA)  # Equivalent to adjust_brightness() using a delta randomly picked in the interval [-max_delta, max_delta)
@@ -10,4 +14,3 @@ def augmentations(image):
     img = tf.image.random_flip_up_down(img)
 
     return img
-

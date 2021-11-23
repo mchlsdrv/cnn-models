@@ -13,6 +13,9 @@ __pycache__/
 # tf
 *.gz
 *.pb
+*.pbtxt
+*.index
+*.data*
 
 # logs
 *.v2
