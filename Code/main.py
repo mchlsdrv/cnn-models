@@ -127,9 +127,9 @@ if __name__ == '__main__':
     if not args.no_train_feature_extractor:
         # 1) Get the data
         train_ds, val_ds = data_funcs.get_dataset_from_tiff(
-        input_image_shape=input_image_shape,
-        batch_size=args.batch_size,
-        validation_split=args.validation_split
+            input_image_shape=input_image_shape,
+            batch_size=args.batch_size,
+            validation_split=args.validation_split
         )
 
         # 3) Configure callbacks
@@ -162,52 +162,55 @@ if __name__ == '__main__':
 
     priors_knn_df = aux_funcs.transform_images(images_root_dir=TRAIN_DATA_DIR_PATH, model=feat_ext_model, patch_height=args.crop_size, patch_width=args.crop_size)
 
-    X = np.array([x[0].numpy() for x in trapriors_knn_df.loc[:, 'vector'].values])
-    files = transforms_df.loc[:, 'file'].values
+    X = np.array([x for x in priors_knn_df.loc[:, 'mean_transform'].values])
+    print(X, X.shape)
+    # X = np.array([x[0].numpy() for x in priors_knn_df.loc[:, 'vector'].values])
+    files = priors_knn_df.loc[:, 'file'].values
 
-    priors_knn_df.loc[:, 'neighbors'] = aux_funcs.get_knn_files(X=X, files=files, k=10)
+    priors_knn_df.loc[:, 'neighbors'] = aux_funcs.get_knn_files(X=X, files=files, k=5)
     priors_knn_df.to_pickle(current_run_dir / f'priors_knn_df.pkl')
+    priors_knn_df = pd.read_pickle(current_run_dir / 'priors_knn_df.pkl')
 
-    # 3) Build the feature extractor model
-    labeller_model = get_model(
-        purpose='labelling',
-        model_type=args.labeller_net,
-        number_of_classes=args.number_of_classes,
-        crop_size=args.crop_size,
-        priors=priors_knn_df,
-    )
-
-
-    train_ds, val_ds = data_funcs.get_dataset_from_tiff(
-    input_image_shape=input_image_shape,
-    batch_size=args.batch_size,
-    validation_split=args.validation_split
-    )
-
-    # 3) Configure callbacks
-    callbacks = clustering_callbacks.get_callbacks(
-        model=feat_ext_model,
-        X=next(iter(val_ds))[0][0],
-        ts=ts
-    )
-
-    # 4) Compile
-    labeller_model.compile(
-        # loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        optimizer=keras.optimizers.Adam(learning_rate=1e-4),
-        metrics=['accuracy']
-    )
-
-    # 5) Fit feature extraction model
-    validation_steps = int(args.validation_steps_proportion * args.steps_per_epoch) if 0 < int(args.validation_steps_proportion * args.steps_per_epoch) <= args.steps_per_epoch else 1
-    feat_ext_model.fit(
-        train_ds,
-        validation_data=val_ds,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        steps_per_epoch=args.steps_per_epoch,
-        validation_steps=validation_steps,
-        validation_freq=1,  # [1, 100, 1500, ...] - validate on these epochs
-        shuffle=True,
-        callbacks=callbacks
-    )
+    # # 3) Build the feature extractor model
+    # labeller_model = get_model(
+    #     purpose='labelling',
+    #     model_type=args.labeller_net,
+    #     number_of_classes=args.number_of_classes,
+    #     crop_size=args.crop_size,
+    #     priors=priors_knn_df,
+    # )
+    #
+    #
+    # train_ds, val_ds = data_funcs.get_dataset_from_tiff(
+    #     input_image_shape=input_image_shape,
+    #     batch_size=args.batch_size,
+    #     validation_split=args.validation_split
+    # )
+    #
+    # # 3) Configure callbacks
+    # callbacks = clustering_callbacks.get_callbacks(
+    #     model=feat_ext_model,
+    #     X=next(iter(val_ds))[0][0],
+    #     ts=ts
+    # )
+    #
+    # # 4) Compile
+    # labeller_model.compile(
+    #     # loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    #     optimizer=keras.optimizers.Adam(learning_rate=1e-4),
+    #     metrics=['accuracy']
+    # )
+    #
+    # # 5) Fit feature extraction model
+    # validation_steps = int(args.validation_steps_proportion * args.steps_per_epoch) if 0 < int(args.validation_steps_proportion * args.steps_per_epoch) <= args.steps_per_epoch else 1
+    # feat_ext_model.fit(
+    #     train_ds,
+    #     validation_data=val_ds,
+    #     batch_size=args.batch_size,
+    #     epochs=args.epochs,
+    #     steps_per_epoch=args.steps_per_epoch,
+    #     validation_steps=validation_steps,
+    #     validation_freq=1,  # [1, 100, 1500, ...] - validate on these epochs
+    #     shuffle=True,
+    #     callbacks=callbacks
+    # )
