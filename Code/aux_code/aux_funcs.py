@@ -20,17 +20,34 @@ def get_patch_df(image_file, patch_height, patch_width):
         for w in range(0, img_w, patch_width):
             patch = img[h:h+patch_height, w:w+patch_width, :]
             if patch.shape[0] == patch_height and patch.shape[1] == patch_width:
-                df = df.append(dict(file=image_file, image=patch), ignore_index=True)
+                df = df.append(dict(file=str(image_file), image=patch), ignore_index=True)
     return df
 
 
 def transform_images(images_root_dir, model, patch_height, patch_width):
-    df = pd.DataFrame(columns=['file', 'image'])
+    df = pd.DataFrame(columns=['file', 'mean_transform'])
     for root, dirs, files in os.walk(images_root_dir):
         for file in files:
-            df = df.append(get_patch_df(image_file=Path(f'{root}/{file}'), patch_height=patch_height, patch_width=patch_width), ignore_index=True)
-    df.loc[:, 'vector'] = df.loc[:, 'image'].apply(lambda x: model(np.expand_dims(x, axis=0)) if len(x.shape) < 4 else model(x))
+
+            # get the patches
+            patches_df = get_patch_df(image_file=Path(f'{root}/{file}'), patch_height=patch_height, patch_width=patch_width)
+
+            # get the mean patch transform
+            patch_transforms = list()
+            for patch in patches_df.loc[:, 'image'].values:
+                patch_transforms.append(model(np.expand_dims(patch, axis=0)) if len(patch.shape) < 4 else model(patch))
+            patch_transforms = np.array(patch_transforms)
+            mean_transform = patch_transforms.mean(axis=0)[0, :]
+            df = df.append(dict(file=f'{root}/{file}', mean_transform=mean_transform), ignore_index=True)
     return df
+
+# def transform_images(images_root_dir, model, patch_height, patch_width):
+#     df = pd.DataFrame(columns=['file', 'image'])
+#     for root, dirs, files in os.walk(images_root_dir):
+#         for file in files:
+#             df = df.append(get_patch_df(image_file=Path(f'{root}/{file}'), patch_height=patch_height, patch_width=patch_width), ignore_index=True)
+#     df.loc[:, 'vector'] = df.loc[:, 'image'].apply(lambda x: model(np.expand_dims(x, axis=0)) if len(x.shape) < 4 else model(x))
+#     return df
 
 
 def get_knn_files(X, files, k):

@@ -8,10 +8,12 @@ __pycache__/
 
 # Data
 *.pickle
+*.pkl
 *.npy
 
 # tf
 *.gz
+*.zip
 *.pb
 *.pbtxt
 *.index
