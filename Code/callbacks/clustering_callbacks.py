@@ -15,9 +15,7 @@ from configs.general_configs import (
     LR_REDUCE_PATIENCE,
     LAYER_VIZ_FIG_SIZE,
     LAYER_VIZ_CMAP,
-    # LOG_DIR_PATH,
     OUTPUT_DIR_PATH,
-    # CHECKPOINT_DIR_PATH,
     CHECKPOINT_FREQUENCY
 )
 
@@ -133,7 +131,7 @@ def get_callbacks(model, X, ts):
             min_lr=0.0,
         ),
         tf.keras.callbacks.ModelCheckpoint(
-            filepath=(OUTPUT_DIR_PATH / f'{ts}/checkpoints') / 'cp-{epoch:04d}.ckpt',
+            filepath=(OUTPUT_DIR_PATH / f'{ts}/checkpoints/{model.net_name}') / 'cp-{epoch:04d}.ckpt',
             verbose=1,
             save_weights_only=True,
             save_freq=CHECKPOINT_FREQUENCY
