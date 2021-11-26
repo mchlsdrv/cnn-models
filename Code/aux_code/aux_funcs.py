@@ -101,6 +101,14 @@ def get_patch_transforms(images_root_dir, model, patch_height, patch_width):
     df = df.loc[:, ['file', 'patch_transform']]
     return df
 
+# def transform_images(images_root_dir, model, patch_height, patch_width):
+#     df = pd.DataFrame(columns=['file', 'image'])
+#     for root, dirs, files in os.walk(images_root_dir):
+#         for file in files:
+#             df = df.append(get_patch_df(image_file=Path(f'{root}/{file}'), patch_height=patch_height, patch_width=patch_width), ignore_index=True)
+#     df.loc[:, 'vector'] = df.loc[:, 'image'].apply(lambda x: model(np.expand_dims(x, axis=0)) if len(x.shape) < 4 else model(x))
+#     return df
+
 
 def get_knn_files(X, files, k, algorithm='auto'):
     # Detect the k nearest neighbors
