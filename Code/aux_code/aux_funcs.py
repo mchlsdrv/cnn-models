@@ -101,14 +101,6 @@ def get_patch_transforms(images_root_dir, model, patch_height, patch_width):
     df = df.loc[:, ['file', 'patch_transform']]
     return df
 
-# def transform_images(images_root_dir, model, patch_height, patch_width):
-#     df = pd.DataFrame(columns=['file', 'image'])
-#     for root, dirs, files in os.walk(images_root_dir):
-#         for file in files:
-#             df = df.append(get_patch_df(image_file=Path(f'{root}/{file}'), patch_height=patch_height, patch_width=patch_width), ignore_index=True)
-#     df.loc[:, 'vector'] = df.loc[:, 'image'].apply(lambda x: model(np.expand_dims(x, axis=0)) if len(x.shape) < 4 else model(x))
-#     return df
-
 
 def get_knn_files(X, files, k, algorithm='auto'):
     # Detect the k nearest neighbors
@@ -238,6 +230,8 @@ def get_arg_parcer():
     parser.add_argument('--feature_extractor_validation_split', type=float, default=0.1, help='The proportion of the data to be used for validation in the train process of the feature extractor model ((should be in range [0.0, 1.0])')
     parser.add_argument('--feature_extractor_validation_steps_proportion', type=float, default=0.5, help='The proportion of validation steps in regards to the training steps in the train process of the feature extractor model ((should be in range [0.0, 1.0])')
     parser.add_argument('--feature_extractor_checkpoint_dir', type=str, default='', help=f'The path to the directory that contains the checkpoints of the feature extraction model')
+    parser.add_argument('--feature_extractor_optimizer_lr', type=float, default=1e-4, help=f'The initial learning rate of the optimizer')
+    parser.add_argument('--feature_extractor_callbacs_reduce_lr_on_plateau', default=False, action='store_true', help=f'If to use the ReduceLROnPlateau callback')
     parser.add_argument('--no_train_feature_extractor', default=False, action='store_true', help=f'If theres no need to train the feature extractor model')
 
     # b) Classifier network

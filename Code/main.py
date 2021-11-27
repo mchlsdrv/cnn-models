@@ -80,7 +80,7 @@ if __name__ == '__main__':
         # 4) Compile
         feat_ext_model.compile(
             loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+            optimizer=keras.optimizers.Adam(learning_rate=args.feature_extractor_optimizer_lr),
             metrics=['accuracy']
         )
 
