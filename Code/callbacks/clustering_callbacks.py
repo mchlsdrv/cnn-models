@@ -9,14 +9,41 @@ from aux_code import aux_funcs
 
 
 from configs.general_configs import (
-    LOG_INTERVAL,
+    OUTPUT_DIR_PATH,
+    # - Early Stopping
+    EARLY_STOPPING_MONITOR,
     EARLY_STOPPING_PATIENCE,
+    EARLY_STOPPING_MIN_DELTA,
+    EARLY_STOPPING_MODE,
+    EARLY_STOPPING_RESTORE_BEST_WEIGHTS,
+    EARLY_STOPPING_VERBOSE,
+
+    # - Tensor Board
+    TENSOR_BOARD_WRITE_GRAPH,
+    TENSOR_BOARD_WRITE_IMAGES,
+    TENSOR_BOARD_WRITE_STEPS_PER_SECOND,
+    TENSOR_BOARD_UPDATE_FREQ,
+    TENSOR_BOARD_LOG_INTERVAL,
+
+    # - LR Reduce
+    LR_REDUCE_MONITOR,
     LR_REDUCE_FACTOR,
     LR_REDUCE_PATIENCE,
-    LAYER_VIZ_FIG_SIZE,
-    LAYER_VIZ_CMAP,
-    OUTPUT_DIR_PATH,
-    CHECKPOINT_FREQUENCY
+    LR_REDUCE_MIN_DELTA,
+    LR_REDUCE_COOLDOWN,
+    LR_REDUCE_MIN_LR,
+    LR_REDUCE_MODE,
+    LR_REDUCE_VERBOSE,
+
+    # - Layer Visualization
+    CONV_VIS_LAYER_FIG_SIZE,
+    CONV_VIS_LAYER_CMAP,
+    CONV_VIS_LAYER_LOG_INTERVAL,
+
+    # - Model Checkpoint
+    MODEL_CHECKPOINT_VERBOSE,
+    MODEL_CHECKPOINT_SAVE_WEIGHTS_ONLY,
+    MODEL_CHECKPOINT_CHECKPOINT_FREQUENCY,
 )
 
 
@@ -98,43 +125,35 @@ class ConvLayerVis(keras.callbacks.Callback):
                 self.tensor_board_th = aux_funcs.launch_tensor_board(logdir=self.log_dir)
 
 
-def get_callbacks(model, X, ts):
+def get_callbacks(model, X, ts, reduce_lr_on_plateau=True):
     callbacks = [
         # -------------------
         # Built-in  callbacks
         # -------------------
         keras.callbacks.TensorBoard(
             log_dir=OUTPUT_DIR_PATH / f'{ts}/logs',
-            write_graph=True,
-            write_images=True,
-            write_steps_per_second=True,
-            update_freq='epoch',
-            embeddings_freq=LOG_INTERVAL,
+            write_graph=TENSOR_BOARD_WRITE_GRAPH,
+            write_images=TENSOR_BOARD_WRITE_IMAGES,
+            write_steps_per_second=TENSOR_BOARD_WRITE_STEPS_PER_SECOND,
+            update_freq=TENSOR_BOARD_UPDATE_FREQ,
+            embeddings_freq=TENSOR_BOARD_LOG_INTERVAL,
         ),
         tf.keras.callbacks.EarlyStopping(
-            monitor='val_loss',
-            min_delta=0,
+            monitor=EARLY_STOPPING_MONITOR,
+            min_delta=EARLY_STOPPING_MIN_DELTA,
             patience=EARLY_STOPPING_PATIENCE,
-            mode='auto',
-            restore_best_weights=True,
-            verbose=1,
+            mode=EARLY_STOPPING_MODE,
+            restore_best_weights=EARLY_STOPPING_RESTORE_BEST_WEIGHTS,
+            verbose=EARLY_STOPPING_VERBOSE,
         ),
+
         tf.keras.callbacks.TerminateOnNaN(),
-        tf.keras.callbacks.ReduceLROnPlateau(
-            monitor='val_loss',
-            factor=LR_REDUCE_FACTOR,
-            patience=LR_REDUCE_PATIENCE,
-            verbose=1,
-            mode='auto',
-            min_delta=0.0001,
-            cooldown=0,
-            min_lr=0.0,
-        ),
+
         tf.keras.callbacks.ModelCheckpoint(
             filepath=(OUTPUT_DIR_PATH / f'{ts}/checkpoints/{model.net_name}') / 'cp-{epoch:04d}.ckpt',
-            verbose=1,
-            save_weights_only=True,
-            save_freq=CHECKPOINT_FREQUENCY
+            verbose=MODEL_CHECKPOINT_VERBOSE,
+            save_weights_only=MODEL_CHECKPOINT_SAVE_WEIGHTS_ONLY,
+            save_freq=MODEL_CHECKPOINT_CHECKPOINT_FREQUENCY
         ),
         # -----------------
         # Custom callbacks
@@ -144,11 +163,24 @@ def get_callbacks(model, X, ts):
             input_layer=model.model.input,
             layers=model.model.layers,
             figure_configs=dict(
-                figsize=LAYER_VIZ_FIG_SIZE,
-                cmap=LAYER_VIZ_CMAP,
+                figsize=CONV_VIS_LAYER_FIG_SIZE,
+                cmap=CONV_VIS_LAYER_CMAP,
              ),
             log_dir=f'{OUTPUT_DIR_PATH}/{ts}/logs/train',
-            log_interval=LOG_INTERVAL
+            log_interval=CONV_VIS_LAYER_LOG_INTERVAL
         )
     ]
+    if not no_reduce_lr_on_plateau:
+        callbacks.append(
+            tf.keras.callbacks.ReduceLROnPlateau(
+                monitor=LR_REDUCE_MONITOR,
+                factor=LR_REDUCE_FACTOR,
+                patience=LR_REDUCE_PATIENCE,
+                min_delta=LR_REDUCE_MIN_DELTA,
+                cooldown=LR_REDUCE_COOLDOWN,
+                min_lr=LR_REDUCE_MIN_LR,
+                mode=LR_REDUCE_MODE,
+                verbose=LR_REDUCE_VERBOSE,
+            )
+        )
     return callbacks

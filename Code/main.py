@@ -74,7 +74,8 @@ if __name__ == '__main__':
         callbacks = clustering_callbacks.get_callbacks(
             model=feat_ext_model,
             X=next(iter(val_ds))[0][0],
-            ts=TS
+            ts=TS,
+            no_reduce_lr_on_plateau=args.no_reduce_lr_on_plateau_feature_extractor
         )
 
         # 4) Compile
