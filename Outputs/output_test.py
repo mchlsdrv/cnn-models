@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 import pathlib
 from pathlib import Path
 
-INPUT_DIR = pathlib.Path('C:/Users/mchls/Desktop/Projects/Nano-Scout/Data/Test Images - 2 classes/train/10,000x - 89')
+INPUT_DIR = pathlib.Path('C:/Users/Michael/Desktop/Projects/Nano-Scout/Data/Test Images - 2 classes/train/10,000x - 89')
 INPUT_DIR.is_dir()
-CURRENT_DIR = pathlib.Path('C:\\Users\\mchls\\Desktop\\Projects\\Nano-Scout\\Outputs')
+CURRENT_DIR = pathlib.Path('C:/Users/Michael/Desktop/Projects/Nano-Scout/Outputs')
 IMAGES_DIR = CURRENT_DIR / '2 class (Antrax, Strep) 5-KNN images'
 if not IMAGES_DIR.is_dir():
     os.makedirs(IMAGES_DIR)
-priors_df = pd.read_pickle('C:\\Users\\mchls\\Desktop\\Projects\\Nano-Scout\\Outputs\\priors_knn_df.pkl')
+priors_df = pd.read_pickle(CURRENT_DIR / 'priors_knn_df.pkl')
 priors_df
 priors_df.loc[:, 'file'] = priors_df.loc[:, 'file'].apply(lambda file_path: file_path.split('/')[-1])
 priors_df.loc[1, 'neighbors'][0][1]
@@ -32,4 +32,3 @@ for idx, file in enumerate(priors_df.loc[:, 'file']):
         axs[idx].title.set_size(70)
     fig.savefig(IMAGES_DIR / file)
     # break
-

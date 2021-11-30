@@ -6,9 +6,9 @@ import pandas as pd
 from losses.clustering_losses import SCANLoss
 
 class ConvModel(keras.Model):
-
-    def __init__(self, input_shape):
+    def __init__(self, net_name: str, input_shape: tuple):
         super().__init__()
+        self.net_name = net_name
         self.input_image_shape = input_shape
         self.model = keras.Sequential([
             layers.Input(shape=input_shape),
@@ -138,10 +138,10 @@ class ResNet(keras.Model):
         self.model.save(save_path)
 
 
-class FeatureExtractionResNet(ResNet):
-    def __init__(self, net_configs, augmentations, similarity_loss: tf.keras.losses.Loss):
+class FeatureExtractorResNet(ResNet):
+    def __init__(self, net_name, net_configs, augmentations, similarity_loss: tf.keras.losses.Loss):
         super().__init__(net_configs=net_configs)
-        print(net_configs)
+        self.net_name = net_name
         self.net_configs = net_configs
         self.augmentations = augmentations
         self.similarity_loss = similarity_loss
@@ -179,10 +179,10 @@ class FeatureExtractionResNet(ResNet):
         return {m.name: m.result() for m in self.metrics}
 
 
-class LabelingResNet(ResNet):
-    def __init__(self, net_configs: dict, priors: pd.DataFrame, augmentations):
+class ClassifierResNet(ResNet):
+    def __init__(self, name, net_configs: dict, priors: pd.DataFrame, augmentations):
         super().__init__(net_configs=net_configs)
-        print(net_configs)
+        self.net_name = net_name
         self.net_configs = net_configs
         self.augmentations = augmentations
         self.priors = priors
