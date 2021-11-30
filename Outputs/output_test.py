@@ -20,15 +20,28 @@ priors_df.loc[:, 'neighbors'] = priors_df.loc[:, 'neighbors'].apply(lambda file_
 priors_df
 priors_df
 # for root, dirs, files in os.walk(INPUT_DIR):
+len(priors_df.loc[0, 'distances'])
+priors_df.shape
+len(priors_df.loc[0, 'neighbors'])
 for idx, file in enumerate(priors_df.loc[:, 'file']):
-    fig, axs = plt.subplots(1, 5, figsize=(100, 15));
+    fig, axs = plt.subplots(1, 5, figsize=(100, 15), facecolor='#c0d6e4');
+    distances = priors_df.loc[idx, 'distances'][0]
     neighbors = priors_df.loc[idx, 'neighbors']
-    for idx, neighbor in enumerate(neighbors):
-        axs[idx].imshow(cv2.imread(root + f'/{neighbor}'))
+    for idx, (distance, neighbor) in enumerate(zip(distances, neighbors)):
+        axs[idx].imshow(cv2.imread(str(INPUT_DIR / f'{neighbor}')))
         if not idx:
-            axs[idx].set(title=f'Original ({neighbor})')
+            axs[idx].set(title=f'{neighbor} (Original)')
         else:
-            axs[idx].set(title=f'{neighbor}')
+            axs[idx].set(title=f'{neighbor} (Distance = {distance:.1f})')
         axs[idx].title.set_size(70)
     fig.savefig(IMAGES_DIR / file)
+<<<<<<< HEAD
     # break
+=======
+    plt.close(fig)
+
+fig, ax = plt.subplots(1, 2, facecolor='#c0d6e4')
+ax[0].plot([0, 1, 2], [0, 1, 2])
+ax[1].plot([0, 1, 2], [0, 1, 2])
+fig.savefig('new_plot.png')
+>>>>>>> e621c3d326960ac7bd7d902114b3d152b2def4c8

@@ -36,17 +36,27 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print(tf.config.list_physical_devices('GPU'))
+<<<<<<< HEAD
 
     aux_funcs.choose_gpu(gpu_id = args.gpu_id)
 
+=======
+
+    aux_funcs.choose_gpu(gpu_id = args.gpu_id)
+
+>>>>>>> e621c3d326960ac7bd7d902114b3d152b2def4c8
     current_run_dir = OUTPUT_DIR_PATH / f'{TS}'
     if not current_run_dir.is_dir():
         os.makedirs(current_run_dir)
 
     input_image_shape = (args.crop_size, args.crop_size, 1)
 
+<<<<<<< HEAD
     # I) Feature Extraction
     # 1 - Build the feature extractor model
+=======
+    # 1) Build the feature extractor model
+>>>>>>> e621c3d326960ac7bd7d902114b3d152b2def4c8
     feat_ext_model = aux_funcs.get_model(
         net_name='feature_extractor',
         model_type=args.feature_extractor_net,
@@ -87,7 +97,11 @@ if __name__ == '__main__':
             metrics=['accuracy']
         )
 
+<<<<<<< HEAD
         # 2.4 Fit feature extraction model
+=======
+        # 5) Fit feature extraction model
+>>>>>>> e621c3d326960ac7bd7d902114b3d152b2def4c8
         validation_steps = int(args.feature_extractor_validation_steps_proportion * args.feature_extractor_train_steps_per_epoch) if 0 < int(args.feature_extractor_validation_steps_proportion * args.feature_extractor_train_steps_per_epoch) <= args.feature_extractor_train_steps_per_epoch else 1
         feat_ext_model.fit(
             train_ds,
@@ -101,7 +115,11 @@ if __name__ == '__main__':
             callbacks=callbacks
         )
 
+<<<<<<< HEAD
     # 3 - Get the priors
+=======
+
+>>>>>>> e621c3d326960ac7bd7d902114b3d152b2def4c8
     if args.knn_patch_optimization:
         priors_knn_df = aux_funcs.get_patch_transforms(images_root_dir=TRAIN_DATA_DIR_PATH, model=feat_ext_model, patch_height=args.crop_size, patch_width=args.crop_size)
         X = np.array([x for x in priors_knn_df.loc[:, 'patch_transform'].values])
@@ -121,6 +139,7 @@ if __name__ == '__main__':
         priors_knn_df.to_pickle(knn_priors_output_dir / f'priors_knn_df.pkl')
         aux_funcs.plot_knn(knn=priors_knn_df, save_dir=knn_priors_output_dir)
 
+<<<<<<< HEAD
     # II) Classification
     # 1 - Construct the dataset
     knn_data_set = data_funcs.KNNDataLoader(
@@ -182,3 +201,48 @@ if __name__ == '__main__':
         pred = classifier_net(img)
         file_name = file.split('/')[-1]
         cv2.imwrite(str(classified_images_dir / f'{np.argmax(pred)}/{file_name}'), img)
+=======
+    # # 3) Build the feature extractor model
+    # labeller_model = aux_funcs.get_model(
+    #     net_name='classifier',
+    #     model_type=args.labeller_net,
+    #     number_of_classes=args.number_of_classes,
+    #     crop_size=args.crop_size,
+    #     priors=priors_knn_df,
+    # )
+    #
+    #
+    # train_ds, val_ds = data_funcs.get_dataset_from_tiff(
+    #     input_image_shape=input_image_shape,
+    #     batch_size=args.batch_size,
+    #     validation_split=args.validation_split
+    # )
+    #
+    # # 3) Configure callbacks
+    # callbacks = clustering_callbacks.get_callbacks(
+    #     model=feat_ext_model,
+    #     X=next(iter(val_ds))[0][0],
+    #     ts=ts
+    # )
+    #
+    # # 4) Compile
+    # labeller_model.compile(
+    #     # loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    #     optimizer=keras.optimizers.Adam(learning_rate=1e-4),
+    #     metrics=['accuracy']
+    # )
+    #
+    # # 5) Fit feature extraction model
+    # validation_steps = int(args.validation_steps_proportion * args.steps_per_epoch) if 0 < int(args.validation_steps_proportion * args.steps_per_epoch) <= args.steps_per_epoch else 1
+    # feat_ext_model.fit(
+    #     train_ds,
+    #     validation_data=val_ds,
+    #     batch_size=args.batch_size,
+    #     epochs=args.epochs,
+    #     steps_per_epoch=args.steps_per_epoch,
+    #     validation_steps=validation_steps,
+    #     validation_freq=1,  # [1, 100, 1500, ...] - validate on these epochs
+    #     shuffle=True,
+    #     callbacks=callbacks
+    # )
+>>>>>>> e621c3d326960ac7bd7d902114b3d152b2def4c8
