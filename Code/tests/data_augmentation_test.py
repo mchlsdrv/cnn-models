@@ -20,8 +20,8 @@ from models.cnn import ConvModel
 from callbacks.tensorboard_callbacks import ConvLayerVis
 from aux_code import aux_funcs
 
-DATA_PATH = Path('C:/Users/mchls/Desktop/Projects/Nano-Scout/Data/Test Images - 2 classes/train/10,000x - 89')
-DATA_PATH.is_dir()
+
+DATA_PATH = Path('C:\\Users\\mchls\\Desktop\\Projects\\Data\\antrax')
 BATCH_SIZE = 32
 INPUT_IMAGE_SHAPE = (128, 128, 1)
 CROP_SHAPE = INPUT_IMAGE_SHAPE
@@ -118,7 +118,7 @@ def _fixup_shape(images, labels):
 if __name__=='__main__':
     # create_dataset()
 
-    train_ds = tf.data.Dataset.list_files(str(DATA_PATH / '*.tiff'))
+    train_ds = tf.data.Dataset.list_files(str(DATA_PATH / 'train/10,000x - 48/*.tiff'))
     train_ds = train_ds.map(lambda x: tf.numpy_function(load_image, [x], (tf.float32, tf.float32)))
     train_ds = train_ds.map(_fixup_shape)
     train_ds = train_ds.batch(BATCH_SIZE)
@@ -128,7 +128,6 @@ if __name__=='__main__':
 
     X, y = next(iter(train_ds))
     X.shape.as_list(), y.shape.as_list()
-    type(X)
     # Model with keras.Sequential
     model = ConvModel(input_shape=INPUT_IMAGE_SHAPE)
     model.compile(

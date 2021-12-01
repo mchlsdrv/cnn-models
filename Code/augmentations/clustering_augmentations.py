@@ -1,6 +1,4 @@
 import tensorflow as tf
-
-
 from configs.general_configs import (
     BRIGHTNESS_DELTA,
     CONTRAST

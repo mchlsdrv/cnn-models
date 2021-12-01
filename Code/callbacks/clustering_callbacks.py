@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 import matplotlib.pyplot as plt
-from aux_code import aux_funcs
+from utils import aux_funcs
 
 
 from configs.general_configs import (

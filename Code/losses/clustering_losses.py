@@ -31,6 +31,7 @@ class SCANLoss(keras.losses.Loss):
 
             # II) Get the neighbors of the current image
             N_X = N[i]
+            # print('N', N)
             # - For each neighbor of the original image do:
             for ngbr in N_X:
                 # - Add the embeding of the neighbor to the batch list
@@ -42,6 +43,7 @@ class SCANLoss(keras.losses.Loss):
                 # print(f'dot_prod: ', dot_prod)
                 consistency_loss += tf.math.log(dot_prod + EPSILON)
                 # print(f'consistency_loss: ', consistency_loss)
+                # print(f'type(consistency_loss): ', type(consistency_loss))
 
         # III) Calculate the consistency loss
         consistency_loss = 1 / D.shape[0] * consistency_loss
