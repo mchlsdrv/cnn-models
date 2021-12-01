@@ -32,6 +32,46 @@ class ConvModel(keras.Model):
     def call(self, inputs):
         return self.model(inputs)
 
+    def train_step(self, data):
+        # Get the image only (the label is irrelevant)
+        X = data
+
+        with tf.GradientTape() as tape:
+            loss = entropy_loss = 0.0
+            x_emds = list()
+            x_btch_emds = list()
+            # For each sample in the current batch
+            for x in X:
+                # Add the embeding of the original image
+                x_emb_orgn = self(x[0], training=True)
+                x_emds.append(x_emb_orgn)
+                x_btch_emds.append(x_emb_orgn)
+
+                # Get the neighbors of the original image
+                N_x = x[1:]
+                # For each neighbor of the original image do:
+                for k in N_x:
+                    # Add the embeding of the neighbor to the batch list
+                    x_btch_emds.append(self(k, training=True))
+
+                # Calculate the consistency part of the SCAN loss
+                loss += self.loss(x_emb, k_emb)
+
+            class_probs = np.array(x_emds).mean(axis=1)
+            entropy_loss = class_probs * tf.math.log(class_probs+EPSILON)
+        # Calculate gradients
+        trainable_vars = self.trainable_variables
+        gradients = tape.gradient(loss, trainable_vars)
+
+        # Update weights
+        self.optimizer.apply_gradients(zip(gradients, trainable_vars))
+
+        # Update the metrics
+        self.compiled_metrics.update_state(y, y_pred)
+
+        # Return the mapping metric names to current value
+        return {m.name: m.result() for m in self.metrics}
+
     def summary(self):
         return self.model.summary()
 

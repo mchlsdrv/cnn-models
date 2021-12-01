@@ -1,7 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import pandas as pd
 import cv2
-
+import types
 from configs.general_configs import (
     TRAIN_DATA_DIR_PATH,
     BAR_HEIGHT,
@@ -11,13 +12,14 @@ from configs.general_configs import (
 def load_image(image_file):
     def _preprocessing_func(image):
         img = image[:-BAR_HEIGHT]
-        img = tf.image.random_crop(img, size=INPUT_IMAGE_SHAPE)  # Slices a shape size portion out of value at a uniformly chosen offset. Requires value.shape >= size.
+        img = tf.image.random_crop(img, size=128)  # Slices a shape size portion out of value at a uniformly chosen offset. Requires value.shape >= size.
         if img.shape[2] == 3:
             img = tf.image.rgb_to_grayscale(img)
         return img
 
     # 1) Decode the path
-    image_file = image_file.decode('utf-8')
+    if isinstance(image_file, bytes):
+        image_file = image_file.decode('utf-8')
 
     # 2) Read the image
     img = cv2.imread(image_file)
@@ -89,3 +91,48 @@ def get_dataset_from_tiff(input_image_shape, batch_size, validation_split):
 
     print(f'- Number of validation samples ({100*VAL_PROP:.2f}%): {n_val}')
     return train_ds, val_ds
+
+
+class KNNDataLoader(tf.keras.utils.Sequence):
+    def __init__(self, knn_image_files: pd.DataFrame, preprocessing_func: types.FunctionType, batch_size: int, crops_per_batch: int, val_prop: float = 0.0, shuffle: bool = True):
+        self.n_files = knn_image_files.shape[0]
+        self.knn_image_files = knn_image_files
+        self.preprocessing_func = preprocessing_func
+        self.batch_size = batch_size
+        self.crops_per_batch = crops_per_batch
+        self.val_prop = val_prop
+        self.shuffle = shuffle
+
+        print(f'''
+        - Train files: {self.knn_image_files.shape[0]}
+        ''')
+
+    def __len__(self):
+        return int(np.floor(self.crops_per_batch * self.n_files / self.batch_size))
+
+    def __getitem__(self, index):
+        # - Get the indices of the data in the range of current index
+        btch_idxs = np.random.choice(np.arange(self.n_files), self.batch_size, replace=False)
+        # print(btch_idxs.shape)
+        return self._get_batch(knn_batch_df = self.knn_image_files.loc[btch_idxs])
+
+    def _get_batch(self, knn_batch_df: pd.DataFrame):
+        X_btch= []
+        # 1) For each file in the files chosen for it
+        for file_idx in knn_batch_df.index:
+            btch_item = []
+            # 2) Add the original image
+            img_file = knn_batch_df.loc[file_idx, 'file']
+            x, _ = load_image(image_file=img_file)
+            btch_item.append(x)
+            # 3) Add each of the neighbors of the original image
+            for ngbr_file in knn_batch_df.loc[file_idx, 'neighbors']:
+                ngbr, _ = load_image(image_file=ngbr_file)
+                btch_item.append(ngbr)
+            X_btch.append(btch_item)
+
+        X_btch = np.array(X_btch, dtype=np.float32)
+        if self.shuffle:
+            np.random.shuffle(X_btch)
+
+        return tf.convert_to_tensor(X_btch, dtype=tf.float32)

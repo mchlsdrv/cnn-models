@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import cv2
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import pathlib
 from pathlib import Path
@@ -41,3 +42,12 @@ fig, ax = plt.subplots(1, 2, facecolor='#c0d6e4')
 ax[0].plot([0, 1, 2], [0, 1, 2])
 ax[1].plot([0, 1, 2], [0, 1, 2])
 fig.savefig('new_plot.png')
+
+a = np.arange(10)
+tf.convert_to_tensor(a, dtype=tf.float32)
+a  = bytes('hello', 'utf-8')
+
+type(a)
+if isinstance(a, bytes):
+    print('hell')
+    
