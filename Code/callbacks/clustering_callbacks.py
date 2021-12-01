@@ -125,7 +125,7 @@ class ConvLayerVis(keras.callbacks.Callback):
                 self.tensor_board_th = aux_funcs.launch_tensor_board(logdir=self.log_dir)
 
 
-def get_callbacks(model, X, ts, reduce_lr_on_plateau=True):
+def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):
     callbacks = [
         # -------------------
         # Built-in  callbacks

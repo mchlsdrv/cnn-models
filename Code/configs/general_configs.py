@@ -8,6 +8,9 @@ TRAIN_DATA_DIR_PATH = DATA_DIR_PATH / 'Test Images - 2 classes/train/10,000x - 8
 OUTPUT_DIR_PATH = Path('../Output')
 CONFIGS_DIR_PATH = Path('./configs')
 
+# CONSTANTS
+EPSILON = 1e-7
+
 # PREPROCESSING CONFIGS
 # - Determines the height of the bar (in pixels) which should be removed from each image
 BAR_HEIGHT = 70  # pix
