@@ -18,7 +18,7 @@ handlers:
     class: logging.FileHandler
     level: ERROR
     formatter: error
-    filename: ./applogs.log
+    filename: ./logs.log
     mode: w
 loggers:
   __main__:

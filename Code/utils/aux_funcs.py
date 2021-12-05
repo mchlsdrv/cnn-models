@@ -1,6 +1,7 @@
 import os
 import yaml
 import io
+import logging
 import threading
 import argparse
 import pathlib
@@ -14,9 +15,17 @@ import cv2
 from models import cnn
 from losses import clustering_losses
 from augmentations import clustering_augmentations
+from callbacks import clustering_callbacks
 from configs.general_configs import (
     CONFIGS_DIR_PATH,
 )
+
+
+def get_train_val_idxs(n_items, val_prop):
+    all_idxs = np.arange(n_items)
+    val_idxs = np.random.choice(all_idxs, int(val_prop * n_items), replace=False)
+    train_idxs = np.setdiff1d(all_idxs, val_idxs)
+    return train_idxs, val_idxs
 
 
 def check_dir(dir_path: pathlib.Path):
@@ -48,7 +57,8 @@ def plot_knn(knn: pd.DataFrame, save_dir: pathlib.Path):
             else:
                 axs[idx].set(title=f'{neighbor_name} (Distance = {distance:.1f})')
             axs[idx].title.set_size(70)
-        print(f'Saving KNN image - {file_name} ({100 * idx / n_files:.1f}% done)')
+        if isinstance(logger, logging.Logger):
+            logger.info(f'Saving KNN image - {file_name} ({100 * idx / n_files:.1f}% done)')
         fig.savefig(plots_dir / (file_name + '.png'))
 
         plt.close(fig)
@@ -143,7 +153,7 @@ def get_image_from_figure(figure):
     return image
 
 
-def launch_tensor_board(logdir):
+def launch_tensorboard(logdir):
     tensorboard_th = threading.Thread(
         target=lambda: os.system(f'tensorboard --logdir={logdir}'),
         daemon=True
@@ -152,14 +162,16 @@ def launch_tensor_board(logdir):
     return tensorboard_th
 
 
-def get_model(net_name, model_type, number_of_classes, crop_size, priors=None):
+def get_model(model_name, model_type, number_of_classes, crop_size, augmentations, custom_loss: None, checkpoint_dir: pathlib.Path = None, priors: pd.DataFrame = None, logger: logging.Logger = None):
     input_image_shape = (crop_size, crop_size, 1)
+    weights_loaded = False
     model = None
     if model_type == 'conv_net':
         model = cnn.ConvModel(
-            net_name=net_name,
+            model_name=model_name,
             input_shape=input_image_shape
         )
+
     elif model_type in ['res_net_x18', 'res_net_x34']:
         architecture = model_type.split('_')[-1]
         resnet_configs_file_path = CONFIGS_DIR_PATH / f'res_net_{architecture}_configs.yml'
@@ -167,39 +179,165 @@ def get_model(net_name, model_type, number_of_classes, crop_size, priors=None):
             resnet_configs = yaml.safe_load(config_file)
         resnet_configs['input_image_shape'] = input_image_shape
         resnet_configs['number_of_classes'] = number_of_classes
-        if net_name == 'feature_extractor':
+        if model_name == 'feature_extractor':
             model = cnn.FeatureExtractorResNet(
-                net_name=net_name,
-                net_configs=resnet_configs,
-                augmentations=clustering_augmentations.augmentations,
-                similarity_loss=clustering_losses.cosine_similarity_loss,
+                model_name=model_name,
+                model_configs=resnet_configs,
+                augmentations=augmentations,
+                similarity_loss=custom_loss,
             )
-        elif net_name == 'classifier':
+
+        elif model_name == 'classifier':
             assert priors is None, f'The \'priors\' can not be None!'
             model = cnn.ClassifierResNet(
-                net_name=net_name,
-                net_configs=resnet_configs,
-                priors=priors,
-                augmentations=clustering_augmentations.augmentations,
+                model_name=model_name,
+                model_configs=resnet_configs,
+                augmentations=augmentations,
+                priors=priors
             )
-    return model
+
+        if checkpoint_dir.is_dir:
+            try:
+                latest_cpt = tf.train.latest_checkpoint(checkpoint_dir)
+
+                model.load_weights(latest_cpt)
+                weights_loaded = True
+            except Exception as err:
+                if isinstance(logger, logging.Logger):
+                    logger.exception(err)
+            else:
+                if isinstance(logger, logging.Logger):
+                    logger.info(f'Weights from \'checkpoint_dir\' were loaded successfully to the \'{model_name}\' model!')
+
+    return model, weights_loaded
 
 
-def choose_gpu(gpu_id: int = 0):
+def choose_gpu(gpu_id: int = 0, logger: logging.Logger = None):
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
         try:
             tf.config.set_visible_devices(gpus[gpu_id], 'GPU')
             physical_gpus = tf.config.list_physical_devices('GPU')
-            # upper_line = ''
-            print(f'''
+            if isinstance(logger, logging.Logger):
+                logger.info(f'''
             ====================================================
             > Running on: {physical_gpus}
             ====================================================
             ''')
-        except RuntimeError as error:
-            print(error)
+        except RuntimeError as err:
+            if isinstance(logger, logging.Logger):
+                logger.exception(err)
 
+
+def train_model(model_configs: dict, data: dict, callback_configs: dict, compile_configs: dict, fit_configs: dict, general_configs: dict, logger=None):
+    # 1 - Build the model
+    model, weights_loaded = get_model(
+        model_name=model_configs.get('model_name'),
+        model_type=model_configs.get('model_type'),
+        number_of_classes=model_configs.get('number_of_classes'),
+        crop_size=model_configs.get('crop_size'),
+        augmentations=model_configs.get('augmentations'),
+        custom_loss=model_configs.get('custom_loss'),
+        checkpoint_dir=model_configs.get('checkpoint_dir'),
+        logger=logger
+    )
+
+    assert model is not None, 'Could not build the feature extractor model!'
+
+    if isinstance(logger, logging.Logger):
+        logger.info(model.summary())
+
+    # 2 - Train model
+    # 2.2 Configure callbacks
+    callbacks, tensor_board_th = clustering_callbacks.get_callbacks(
+        model=model,
+        X=data.get('X_sample'),
+        ts=general_configs.get('time_stamp'),
+        no_reduce_lr_on_plateau=callback_configs.get('no_reduce_lr_on_plateau')
+    )
+
+    # 2.3 Compile model
+    model.compile(
+        loss=compile_configs.get('loss'),
+        optimizer=compile_configs.get('optimizer'),
+        metrics=compile_configs.get('metrics')
+    )
+
+    # 2.4 Fit model
+    validation_steps = int(fit_configs.get('validation_steps_proportion') * fit_configs.get('train_steps_per_epoch')) if 0 < int(fit_configs.get('validation_steps_proportion') * fit_configs.get('train_steps_per_epoch')) <= fit_configs.get('train_steps_per_epoch') else 1
+    model.fit(
+        data.get('train_dataset'),
+        batch_size=fit_configs.get('batch_size'),
+        epochs=fit_configs.get('train_epochs'),
+        steps_per_epoch=fit_configs.get('train_steps_per_epoch'),
+        validation_data=data.get('val_dataset'),
+        validation_steps=validation_steps,
+        validation_freq=fit_configs.get('valdation_freq'),  # [1, 100, 1500, ...] - validate on these epochs
+        shuffle=fit_configs.get('shuffle'),
+        callbacks=callbacks
+    )
+    tensor_board_th.join()
+    return model
+
+
+def classify(model, images_root_dir: pathlib.Path, patch_height: int, patch_width: int, output_dir: pathlib.Path, logger: logging.Logger = None):
+    cls_df = get_mean_image_transforms(images_root_dir=images_root_dir, model=model, patch_height=patch_height, patch_width=patch_width)
+    for idx in cls_df.index: #loc[:, 'file']:
+        file = cls_df.loc[idx, 'file']
+        pred = cls_df.loc[idx, 'image_mean_transform']
+        label = np.argmax(pred)
+        if isinstance(logger, logging.Logger):
+            logger.info(f'''
+> File: {file}
+- pred: {pred}
+- label (argmax(pred)): {label}
+            ''')
+        # - Create a class directory (if it does not already exists)
+        cls_dir = output_dir / f'{label}'
+        os.makedirs(cls_dir, exist_ok=True)
+
+        # - Save the image file in the relevant directory
+        file_name = file.split('/')[-1]
+        shutil.copy(file, cls_dir / f'{file_name}')
+
+
+def get_logger(configs_file, save_file):
+    logger = None
+    try:
+        if configs_file.is_file():
+            with configs_file.open(mode='r') as f:
+                configs = yaml.safe_load(f.read())
+
+                # Assign a valid path to the log file
+                configs['handlers']['logfile']['filename'] = str(save_file)
+                logging.config.dictConfig(configs)
+
+        logger = logging.getLogger(__name__)
+    except Exception as err:
+        print(err)
+
+    return logger
+
+def get_priors_knn_df(model, k: int, train_data_dir: pathlib.Path, patch_height: int, patch_width: int, patch_optimization: bool, save_dir: pathlib.Path, knn_algorithm: str = 'auto'):
+    priors_knn_df = None
+    if patch_optimization:
+        priors_knn_df = get_patch_transforms(images_root_dir=train_data_dir, model=model, patch_height=patch_height, patch_width=patch_width)
+        X = np.array([x for x in priors_knn_df.loc[:, 'patch_transform'].values])
+    else:
+        priors_knn_df = get_mean_image_transforms(images_root_dir=train_data_dir, model=model, patch_height=patch_height, patch_width=patch_width)
+        X = np.array([x for x in priors_knn_df.loc[:, 'image_mean_transform'].values])
+    files = priors_knn_df.loc[:, 'file'].values
+
+    nbrs_distances, nbrs_files = get_knn_files(X=X, files=files, k=k, algorithm=knn_algorithm)
+
+    priors_knn_df.loc[:, 'distances'] = nbrs_distances
+    priors_knn_df.loc[:, 'neighbors'] = nbrs_files
+
+    os.makedirs(save_dir, exist_ok=True)
+    priors_knn_df.to_pickle(save_dir / f'priors_knn_df.pkl')
+    plot_knn(knn=priors_knn_df, save_dir=save_dir)
+
+    return priors_knn_df
 
 def get_arg_parcer():
     parser = argparse.ArgumentParser()
@@ -210,7 +348,7 @@ def get_arg_parcer():
     parser.add_argument('--crop_size', type=int, default=128, choices=[32, 64, 128, 256, 512], help='The size of the images that will be used for network training and inference. If not specified - the image size will be determined by the value in general_configs.py file.')
 
     # b) Feature extractor network
-    parser.add_argument('--feature_extractor_net', type=str, default='res_net_x18', choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to extract the features from the images')
+    parser.add_argument('--feature_extractor_model_type', type=str, default='res_net_x18', choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to extract the features from the images')
     parser.add_argument('--feature_extractor_latent_space_dims', type=int, default=256, help='The dimension of the vectors in the latent space which represent the encodeing of each image')
     parser.add_argument('--feature_extractor_train_epochs', type=int, default=100, help='Number of epochs to train the feature extractor network')
     parser.add_argument('--feature_extractor_train_steps_per_epoch', type=int, default=1000, help='Number of iterations that will be performed on each epoch for the featrue extractor network')
@@ -229,7 +367,7 @@ def get_arg_parcer():
     parser.add_argument('--knn_df_path', type=str, default='', help=f'The path to the KNN data frame file')
 
     # d) Classifier network
-    parser.add_argument('--classifier_net', type=str, default='res_net_x18', choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to classify the samples')
+    parser.add_argument('--classifier_model_type', type=str, default='res_net_x18', choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to classify the samples')
     parser.add_argument('--classifier_number_of_classes', type=int, default=2, help='The number of classes to assign to the samples')
     parser.add_argument('--classifier_train_epochs', type=int, default=100, help='Number of epochs to train the classifier network')
     parser.add_argument('--classifier_train_steps_per_epoch', type=int, default=1000, help='Number of iterations that will be performed on each epoch for the classifier network')

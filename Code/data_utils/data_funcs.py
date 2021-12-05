@@ -5,7 +5,7 @@ import pandas as pd
 import tensorflow as tf
 import cv2
 from functools import partial
-
+from utils import aux_funcs
 from configs.general_configs import (
     TRAIN_DATA_DIR_PATH,
     BAR_HEIGHT,
@@ -89,25 +89,29 @@ def get_dataset_from_tiff(input_image_shape, batch_size, validation_split):
 
 
 class KNNDataLoader(tf.keras.utils.Sequence):
-    def __init__(self, knn_image_files: pd.DataFrame, image_shape: tuple, batch_size: int, crops_per_batch: int, val_prop: float = 0.0, shuffle: bool = True):
+    def __init__(self, knn_image_files: pd.DataFrame, k: int, image_shape: tuple, batch_size: int, crops_per_batch: int, shuffle: bool = True):
         self.n_files = knn_image_files.shape[0]
-        self.knn_image_files = knn_image_files
+        self.knn_image_files = copy.deepcopy(knn_image_files)
+        self.k = k
         self.image_shape = image_shape
         self.batch_size = batch_size
         self.crops_per_batch = crops_per_batch
-        self.val_prop = val_prop
         self.shuffle = shuffle
 
         print(f'''
         - Train files: {self.knn_image_files.shape[0]}
         ''')
 
+    def get_sample(self):
+        return self.__getitem__(index=-1)
+
     def __len__(self):
         return int(np.floor(self.crops_per_batch * self.n_files / self.batch_size))
 
     def __getitem__(self, index):
         # - Get the indices of the data in the range of current index
-        btch_idxs = np.random.choice(np.arange(self.n_files), self.batch_size, replace=False)
+        btch_sz = self.batch_size if index > -1 else 1
+        btch_idxs = np.random.choice(np.arange(self.n_files), btch_sz, replace=False)
         return self._get_batch(knn_batch_df = self.knn_image_files.loc[btch_idxs])
 
     def _get_batch(self, knn_batch_df: pd.DataFrame):
@@ -124,22 +128,31 @@ class KNNDataLoader(tf.keras.utils.Sequence):
             D_btch.append(X)
 
             # II) Add each of the neighbors of the original image (first ne)
-            N_X_files = list(copy.deepcopy(knn_batch_df.loc[X_file_idx, 'neighbors'])[0])
-            # - The  image at index 0 is the original image
-            # print(f'N_X_files', N_X_files)
-            N_X_files.pop(0)
-            # print(f'N_X_files', N_X_files)
-            N_X = []
-            for N_X_file in N_X_files:
+            # - If the number of the neighbors is greater than 1
+            if self.k > 1:
+                N_X_files = list(copy.deepcopy(knn_batch_df.loc[X_file_idx, 'neighbors'])[0])
+                # - The  image at index 0 is the original image
+                N_X_files.pop(0)
+                N_X = []
+                for N_X_file in N_X_files:
+                    ngbr, _ = load_image(
+                        image_file=N_X_file,
+                        image_shape=self.image_shape,
+                        get_label=False
+                    )
+                    # - Collect the neighbors of the original image
+                    N_X.append(ngbr)
+                # - Add the collected neighbors to the neighbors batch
+                N_btch.append(N_X)
+            else:
+                # - If we are interensted only in the closest neighbor
                 ngbr, _ = load_image(
-                    image_file=N_X_file,
+                    image_file=knn_batch_df.loc[X_file_idx, 'neighbors'][0][1],
                     image_shape=self.image_shape,
                     get_label=False
                 )
-                # - Collect the neighbors of the original image
-                N_X.append(ngbr)
-            # - Add the collected neighbors to the neighbors batch
-            N_btch.append(N_X)
+                # - Add the closest neighbor to the neighbors batch
+                N_btch.append(ngbr)
 
         D_btch = np.array(D_btch, dtype=np.float32)
         N_btch = np.array(N_btch, dtype=np.float32)
@@ -149,5 +162,30 @@ class KNNDataLoader(tf.keras.utils.Sequence):
             np.random.shuffle(random_idxs)
             D_btch = D_btch[random_idxs]
             N_btch = N_btch[random_idxs]
-
         return tf.convert_to_tensor(D_btch, dtype=tf.float32), tf.convert_to_tensor(N_btch, dtype=tf.float32)
+
+
+def get_knn_dataset(priors_knn_df: pd.DataFrame, k: int, val_prop: float, image_shape: tuple, train_batch_size: int, val_batch_size: int, crops_per_batch: int, shuffle: int = True):
+    train_idxs, val_idxs = aux_funcs.get_train_val_idxs(
+        n_items=priors_knn_df.shape[0],
+        val_prop=val_prop
+    )
+
+    train_knn_data_set = KNNDataLoader(
+        knn_image_files=priors_knn_df.loc[train_idxs].reset_index(drop=True),
+        k=k,
+        image_shape=image_shape,
+        batch_size=train_batch_size,
+        crops_per_batch=crops_per_batch,
+        shuffle=shuffle
+    )
+
+    val_knn_data_set = KNNDataLoader(
+        knn_image_files=priors_knn_df.loc[val_idxs].reset_index(drop=True),
+        k=k,
+        image_shape=image_shape,
+        batch_size=val_batch_size,
+        crops_per_batch=crops_per_batch,
+        shuffle=shuffle
+    )
+    return train_knn_data_set, val_knn_data_set

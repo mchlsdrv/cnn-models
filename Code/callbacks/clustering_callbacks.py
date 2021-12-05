@@ -61,7 +61,10 @@ class ConvLayerVis(keras.callbacks.Callback):
             os.makedirs(test_image_dir)
         plt.savefig(test_image_dir / 'test_img.png')
 
-        self.tensor_board_th = None
+        self.tensorboard_th = None
+        print(f'Launching a Tensor Board thread on logdir: \'{self.log_dir}\'...')
+        self.tensorboard_th = aux_funcs.launch_tensorboard(logdir=self.log_dir)
+
         n_dims = len(self.X_test.shape)
         assert 2 < n_dims < 5, f'The shape of the test image should be less than 5 and grater than 2, but current shape is {self.X_test.shape}'
 
@@ -120,9 +123,9 @@ class ConvLayerVis(keras.callbacks.Callback):
                 with self.file_writer.as_default():
                     tf.summary.image(f'{layer_name} Feature Maps', aux_funcs.get_image_from_figure(figure=fig), step=epoch)
 
-            if self.tensor_board_th is None:
-                print(f'Launching a Tensor Board thread on logdir: \'{self.log_dir}\'...')
-                self.tensor_board_th = aux_funcs.launch_tensor_board(logdir=self.log_dir)
+            # if self.tensor_board_th is None:
+            #     print(f'Launching a Tensor Board thread on logdir: \'{self.log_dir}\'...')
+            #     self.tensor_board_th = aux_funcs.launch_tensor_board(logdir=self.log_dir)
 
 
 def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):
@@ -150,15 +153,16 @@ def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):
         tf.keras.callbacks.TerminateOnNaN(),
 
         tf.keras.callbacks.ModelCheckpoint(
-            filepath=(OUTPUT_DIR_PATH / f'{ts}/checkpoints/{model.net_name}') / 'cp-{epoch:04d}.ckpt',
+            filepath=(OUTPUT_DIR_PATH / f'{ts}/checkpoints/{model.model_name}') / 'cp-{epoch:04d}.ckpt',
             verbose=MODEL_CHECKPOINT_VERBOSE,
             save_weights_only=MODEL_CHECKPOINT_SAVE_WEIGHTS_ONLY,
             save_freq=MODEL_CHECKPOINT_CHECKPOINT_FREQUENCY
         ),
+    ]
         # -----------------
         # Custom callbacks
         # -----------------
-        ConvLayerVis(
+    conv_layer_vis_cb = ConvLayerVis(
             X=X,
             input_layer=model.model.input,
             layers=model.model.layers,
@@ -169,7 +173,8 @@ def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):
             log_dir=f'{OUTPUT_DIR_PATH}/{ts}/logs/train',
             log_interval=CONV_VIS_LAYER_LOG_INTERVAL
         )
-    ]
+    tb_th = conv_layer_vis_cb.tensorboard_th
+    callbacks.append(conv_layer_vis_cb)
     if not no_reduce_lr_on_plateau:
         callbacks.append(
             tf.keras.callbacks.ReduceLROnPlateau(
@@ -183,4 +188,4 @@ def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):
                 verbose=LR_REDUCE_VERBOSE,
             )
         )
-    return callbacks
+    return callbacks, tb_th

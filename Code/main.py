@@ -1,4 +1,7 @@
 import os
+import shutil
+import glob
+import cv2
 import datetime
 from pathlib import Path
 import pathlib
@@ -12,9 +15,16 @@ from utils import aux_funcs
 from data_utils import data_funcs
 from callbacks import clustering_callbacks
 from losses import clustering_losses
+from functools import partial
+import threading
+import logging
+import logging.config
+
+from augmentations import clustering_augmentations
 from configs.general_configs import (
     CONFIGS_DIR_PATH,
     TRAIN_DATA_DIR_PATH,
+    TEST_DATA_DIR_PATH,
     OUTPUT_DIR_PATH,
 )
 
@@ -36,181 +46,194 @@ if __name__ == '__main__':
     parser = aux_funcs.get_arg_parcer()
     args = parser.parse_args()
 
-    print(tf.config.list_physical_devices('GPU'))
-
-    aux_funcs.choose_gpu(gpu_id = args.gpu_id)
 
     current_run_dir = OUTPUT_DIR_PATH / f'{TS}'
-    if not current_run_dir.is_dir():
-        os.makedirs(current_run_dir)
+    os.makedirs(current_run_dir, exist_ok=True)
+
+    logger = aux_funcs.get_logger(
+        configs_file = CONFIGS_DIR_PATH / 'logger_configs.yml',
+        save_file = current_run_dir / f'logs.log'
+    )
+
+    if isinstance(logger, logging.Logger):
+        logger.info(tf.config.list_physical_devices('GPU'))
+
+    aux_funcs.choose_gpu(gpu_id = args.gpu_id)
 
     input_image_shape = (args.crop_size, args.crop_size, 1)
 
     priors_knn_df = pd.read_pickle(args.knn_df_path)
     if priors_knn_df is None:
-        # I) Feature Extraction
-        # 1 - Build the feature extractor model
-        feat_ext_model = aux_funcs.get_model(
-            net_name='feature_extractor',
-            model_type=args.feature_extractor_net,
-            number_of_classes=args.feature_extractor_latent_space_dims,
-            crop_size=args.crop_size
+        # - Get the dataset
+        if isinstance(logger, logging.Logger):
+            logger.info(f'1) Feature Extraction')
+            logger.info(f'- Construction the dataset ...')
+        train_ds, val_ds = data_funcs.get_dataset_from_tiff(
+            input_image_shape=input_image_shape,
+            batch_size=args.feature_extractor_batch_size,
+            validation_split=args.feature_extractor_validation_split
+        )
+        # - Train feature extractor
+        if isinstance(logger, logging.Logger):
+            logger.info(f'- Training the feature extractor model ...')
+        feat_ext_model = aux_funcs.train_model(
+            model_configs = dict(
+                model_name = 'feature_extractor',
+                model_type = args.feature_extractor_model_type,
+                number_of_classes = args.feature_extractor_latent_space_dims,
+                crop_size = args.crop_size,
+                augmentations = clustering_augmentations.image_augmentations,
+                custom_loss = clustering_losses.cosine_similarity_loss,
+                checkpoint_dir = pathlib.Path(args.feature_extractor_checkpoint_dir),
+            ),
+            data = dict(
+                train_dataset = train_ds,
+                val_dataset = val_ds,
+                X_sample = next(iter(val_ds))[0][0]
+            ),
+            callback_configs = dict(
+                no_reduce_lr_on_plateau = args.no_reduce_lr_on_plateau_feature_extractor
+            ),
+            compile_configs = dict(
+                loss = keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                optimizer = keras.optimizers.Adam(learning_rate=args.feature_extractor_optimizer_lr),
+                metrics = ['accuracy']
+            ),
+            fit_configs = dict(
+                batch_size = args.feature_extractor_batch_size,
+                train_epochs = args.feature_extractor_train_epochs,
+                train_steps_per_epoch = args.feature_extractor_train_steps_per_epoch,
+                validation_steps_proportion = args.feature_extractor_validation_steps_proportion,
+                valdation_freq = 1,  # [1, 100, 1500, ...] - validate on these epochs
+                shuffle = True,
+            ),
+            general_configs = dict(
+                time_stamp = TS
+            ),
+            logger=logger
         )
 
-        assert feat_ext_model is not None, 'Could not build the feature extractor model!'
-
-        print(feat_ext_model.summary())
-
-        if os.path.exists(args.feature_extractor_checkpoint_dir):
-            checkpoint_dir = args.feature_extractor_checkpoint_dir
-            latest_cpt = tf.train.latest_checkpoint(checkpoint_dir)
-
-            feat_ext_model.load_weights(latest_cpt)
-        # 2 - Train featrue extractor
-        if not args.no_train_feature_extractor:
-            # 2.1 - Get the data
-            train_ds, val_ds = data_funcs.get_dataset_from_tiff(
-                input_image_shape=input_image_shape,
-                batch_size=args.feature_extractor_batch_size,
-                validation_split=args.feature_extractor_validation_split
-            )
-
-            # 2.2 Configure callbacks
-            callbacks = clustering_callbacks.get_callbacks(
-                model=feat_ext_model,
-                X=next(iter(val_ds))[0][0],
-                ts=TS,
-                no_reduce_lr_on_plateau=args.no_reduce_lr_on_plateau_feature_extractor
-            )
-
-            # 2.3 Compile
-            feat_ext_model.compile(
-                loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-                optimizer=keras.optimizers.Adam(learning_rate=args.feature_extractor_optimizer_lr),
-                metrics=['accuracy']
-            )
-
-            # 2.4 Fit feature extraction model
-            validation_steps = int(args.feature_extractor_validation_steps_proportion * args.feature_extractor_train_steps_per_epoch) if 0 < int(args.feature_extractor_validation_steps_proportion * args.feature_extractor_train_steps_per_epoch) <= args.feature_extractor_train_steps_per_epoch else 1
-            feat_ext_model.fit(
-                train_ds,
-                validation_data=val_ds,
-                batch_size=args.batch_size,
-                epochs=args.feature_extractor_train_epochs,
-                steps_per_epoch=args.feature_extractor_train_steps_per_epoch,
-                validation_steps=validation_steps,
-                validation_freq=1,  # [1, 100, 1500, ...] - validate on these epochs
-                shuffle=True,
-                callbacks=callbacks
-            )
-
-        if args.knn_patch_optimization:
-            priors_knn_df = aux_funcs.get_patch_transforms(images_root_dir=TRAIN_DATA_DIR_PATH, model=feat_ext_model, patch_height=args.crop_size, patch_width=args.crop_size)
-            X = np.array([x for x in priors_knn_df.loc[:, 'patch_transform'].values])
-        else:
-            priors_knn_df = aux_funcs.get_mean_image_transforms(images_root_dir=TRAIN_DATA_DIR_PATH, model=feat_ext_model, patch_height=args.crop_size, patch_width=args.crop_size)
-            X = np.array([x for x in priors_knn_df.loc[:, 'image_mean_transform'].values])
-        files = priors_knn_df.loc[:, 'file'].values
-
-        nbrs_distances, nbrs_files = aux_funcs.get_knn_files(X=X, files=files, k=args.knn_k, algorithm=args.knn_algorithm)
-
-        priors_knn_df.loc[:, 'distances'] = nbrs_distances
-        priors_knn_df.loc[:, 'neighbors'] = nbrs_files
-
-        knn_priors_output_dir = current_run_dir / 'knn_priors'
-
-        if aux_funcs.check_dir(knn_priors_output_dir):
-            priors_knn_df.to_pickle(knn_priors_output_dir / f'priors_knn_df.pkl')
-            aux_funcs.plot_knn(knn=priors_knn_df, save_dir=knn_priors_output_dir)
+        if isinstance(logger, logging.Logger):
+            logger.info(f'2) KNN Priors Search')
+        priors_knn_df = aux_funcs.get_priors_knn_df(
+            model=feat_ext_model,
+            k=args.knn_k,
+            train_data_dir=TRAIN_DATA_DIR_PATH,
+            patch_height=args.crop_size,
+            patch_width=args.crop_size,
+            patch_optimization=args.knn_patch_optimization,
+            save_dir=current_run_dir / 'knn_priors',
+            knn_algorithm=args.knn_algorithm
+        )
 
     assert priors_knn_df is not None, '\'priors_knn_df\' can\'t be None!'
-
-    print(f'''
+    if isinstance(logger, logging.Logger):
+        logger.info(f'''
 > Priors Data Frame:
     - Columns: {priors_knn_df.columns}
     - Shape: {priors_knn_df.shape}
     - Example: {priors_knn_df.loc[0]}
     ''')
-    # 3 - Get the priors
-    # priors_knn_df = df.read_pickle(args.knn_df_path)
-    # if priors_knn_df is None:
-    #     if args.knn_patch_optimization:
-    #         priors_knn_df = aux_funcs.get_patch_transforms(images_root_dir=TRAIN_DATA_DIR_PATH, model=feat_ext_model, patch_height=args.crop_size, patch_width=args.crop_size)
-    #         X = np.array([x for x in priors_knn_df.loc[:, 'patch_transform'].values])
-    #     else:
-    #         priors_knn_df = aux_funcs.get_mean_image_transforms(images_root_dir=TRAIN_DATA_DIR_PATH, model=feat_ext_model, patch_height=args.crop_size, patch_width=args.crop_size)
-    #         X = np.array([x for x in priors_knn_df.loc[:, 'image_mean_transform'].values])
-    #     files = priors_knn_df.loc[:, 'file'].values
-    #
-    #     nbrs_distances, nbrs_files = aux_funcs.get_knn_files(X=X, files=files, k=args.knn_k, algorithm=args.knn_algorithm)
-    #
-    #     priors_knn_df.loc[:, 'distances'] = nbrs_distances
-    #     priors_knn_df.loc[:, 'neighbors'] = nbrs_files
-    #
-    #     knn_priors_output_dir = current_run_dir / 'knn_priors'
-    #
-    #     if aux_funcs.check_dir(knn_priors_output_dir):
-    #         priors_knn_df.to_pickle(knn_priors_output_dir / f'priors_knn_df.pkl')
-    #         aux_funcs.plot_knn(knn=priors_knn_df, save_dir=knn_priors_output_dir)
 
     # II) Classification
+    if isinstance(logger, logging.Logger):
+        logger.info(f'3) Classifier Model Training')
+        logger.info(f'- Constructing the KNN dataset ...')
     # 1 - Construct the dataset
-    knn_data_set = data_funcs.KNNDataLoader(
-        knn_image_files=priors_knn_df,
+    # - Split into train and validation
+    train_knn_data_set, val_knn_data_set = data_funcs.get_knn_dataset(
+        priors_knn_df=priors_knn_df,
+        k=1,
+        val_prop=args.classifier_validation_split,
         image_shape=input_image_shape,
-        batch_size=args.classifier_batch_size,
-        val_prop=0.0,
-        crops_per_batch=args.classifier_train_steps_per_epoch,
+        train_batch_size=args.classifier_batch_size,
+        val_batch_size=int(args.classifier_batch_size*args.classifier_validation_split),
+        crops_per_batch=classifier_train_steps_per_epoch,
         shuffle=True
     )
+    # train_idxs, val_idxs = aux_funcs.get_train_val_idxs(
+    #     n_items=priors_knn_df.shape[0],
+    #     val_prop=args.classifier_validation_split
+    # )
+    #
+    # train_knn_data_set = data_funcs.KNNDataLoader(
+    #     knn_image_files=priors_knn_df.loc[train_idxs].reset_index(drop=True),
+    #     k=1,
+    #     image_shape=input_image_shape,
+    #     batch_size=args.classifier_batch_size,
+    #     crops_per_batch=args.classifier_train_steps_per_epoch,
+    #     shuffle=True
+    # )
+    #
+    # val_knn_data_set = data_funcs.KNNDataLoader(
+    #     knn_image_files=priors_knn_df.loc[val_idxs].reset_index(drop=True),
+    #     k=1,
+    #     image_shape=input_image_shape,
+    #     batch_size=2, #int(args.classifier_batch_size*args.classifier_validation_split),
+    #     crops_per_batch=args.classifier_train_steps_per_epoch,
+    #     shuffle=True
+    # )
 
-    # 2 - Create the model
-    classifier_model = aux_funcs.get_model(
-        net_name='classifier',
-        model_type=args.classifier_net,
-        number_of_classes=args.classifier_number_of_classes,
-        crop_size=args.crop_size
+    if isinstance(logger, logging.Logger):
+        logger.info(f'- Training the classifier ...')
+    classifier_model = aux_funcs.train_model(
+        model_configs = dict(
+            model_name = 'classifier',
+            model_type = args.classifier_model_type,
+            number_of_classes = args.classifier_number_of_classes,
+            crop_size = args.crop_size,
+            augmentations = clustering_augmentations.image_augmentations,
+            checkpoint_dir = pathlib.Path(args.classifier_checkpoint_dir),
+        ),
+        data = dict(
+            train_dataset = train_knn_data_set,
+            val_dataset = val_knn_data_set,
+            X_sample = val_knn_data_set.get_sample()[0][0],
+        ),
+        callback_configs = dict(
+            no_reduce_lr_on_plateau = args.no_reduce_lr_on_plateau_classifier
+        ),
+        compile_configs = dict(
+            loss = clustering_losses.SCANLoss(), #keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            optimizer = keras.optimizers.Adam(learning_rate=args.classifier_optimizer_lr),
+            # metrics = ['accuracy']
+        ),
+        fit_configs = dict(
+            batch_size = args.classifier_batch_size,
+            train_epochs = args.classifier_train_epochs,
+            train_steps_per_epoch = args.classifier_train_steps_per_epoch,
+            validation_steps_proportion = args.classifier_validation_steps_proportion,
+            valdation_freq = 1,  # [1, 100, 1500, ...] - validate on these epochs
+            shuffle = True,
+        ),
+        general_configs = dict(
+            time_stamp = TS
+        ),
+        logger=logger
     )
 
-    assert classifier_model is not None, 'Could not build the classifier model!'
-
-    print(classifier_model.summary())
-
-    # 3 - Create the SCAN loss function
-    scan_loss = clustering_losses.SCANLoss(
-        model=classifier_model
+    # 4) Classify
+    # - Train images
+    if isinstance(logger, logging.Logger):
+        logger.info(f'4) Classification')
+        logger.info(f'- Classifing train data...')
+    aux_funcs.classify(
+        model=classifier_model,
+        images_root_dir=TRAIN_DATA_DIR_PATH,
+        patch_height=args.crop_size,
+        patch_width=args.crop_size,
+        output_dir=OUTPUT_DIR_PATH / f'{TS}/classified/train',
+        logger=logger
     )
 
-    classifier_optimizer = keras.optimizers.Adam(
-        learning_rate=args.classifier_optimizer_lr
+    # - Test images
+    if isinstance(logger, logging.Logger):
+        logger.info(f'- Classifing test data...')
+    aux_funcs.classify(
+        model=classifier_model,
+        images_root_dir=TEST_DATA_DIR_PATH,
+        patch_height=args.crop_size,
+        patch_width=args.crop_size,
+        output_dir=OUTPUT_DIR_PATH / f'{TS}/classified/test',
+        logger=logger
     )
-
-    for epoch in range(args.classifier_train_epochs):
-        print(f'\nStart of {epoch} epoch')
-        # progress_bar = Progbar(len(knn_data_set) * args.classifier_batch_size, ['loss'])
-        for step, (D_btch, N_btch) in enumerate(knn_data_set):
-            with tf.GradientTape() as tape:
-                loss = scan_loss(D_btch, N_btch)
-                loss += sum(tf.cast(classifier_model.losses, loss.dtype))
-
-            if step % 10:
-                print(f'loss: ', loss)
-
-            grads = tape.gradient(loss, classifier_model.trainable_weights)
-            classifier_optimizer.apply_gradients(zip(grads, classifier_model.trainable_weights))
-
-            # progress_bar.add(args.classifier_batch_size, values=[loss])
-    # 4) Create the output folders
-    classified_images_dir = OUTPUT_DIR_PATH / f'Classified'
-    for class_id in range(args.number_of_classes):
-        cls_dir = classified_images_dir / f'{class_id}'
-        if not cls_dir.is_dir():
-            os.makedirs(cls_dir)
-
-    # 5) Classify
-    for file in glob.glob(str(TRAIN_DATA_DIR_PATH / '*.tiff')):
-        img = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
-        # TODO: get the predictions right
-        pred = classifier_net(img)
-        file_name = file.split('/')[-1]
-        cv2.imwrite(str(classified_images_dir / f'{np.argmax(pred)}/{file_name}'), img)
