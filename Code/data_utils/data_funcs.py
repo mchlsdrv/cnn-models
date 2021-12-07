@@ -6,40 +6,41 @@ import tensorflow as tf
 import cv2
 from functools import partial
 from utils import aux_funcs
+from image_utils import image_funcs
 from configs.general_configs import (
     TRAIN_DATA_DIR_PATH,
     BAR_HEIGHT,
 )
 
 
-def load_image(image_file, image_shape, get_label=True):
-    def _preprocessing_func(image):
-        img = image[:-BAR_HEIGHT]
-        img = tf.image.random_crop(img, size=image_shape)  # Slices a shape size portion out of value at a uniformly chosen offset. Requires value.shape >= size.
-        if img.shape[2] == 3:
-            img = tf.image.rgb_to_grayscale(img)
-        return img
-
-    # 1) Decode the path
-    if isinstance(image_file, bytes):
-        image_file = image_file.decode('utf-8')
-
-    # 2) Read the image
-    img = cv2.imread(image_file)
-    if len(img.shape) < 3:
-        img = np.expand_dims(img, axis=-1)
-    img = _preprocessing_func(image=img)
-    img = tf.cast(img, tf.float32)
-
-    # 3) Get the label
-    label = None
-    if get_label:
-        label = tf.strings.split(image_file, "/")[-1]
-
-        label = tf.strings.substr(label, pos=0, len=1)
-        label = tf.strings.to_number(label, out_type=tf.float32)
-        label = tf.cast(label, tf.float32)
-    return img, label
+# def load_image(image_file, image_shape, get_label=True):
+#     def _preprocessing_func(image):
+#         img = image[:-BAR_HEIGHT]
+#         img = tf.image.random_crop(img, size=image_shape)  # Slices a shape size portion out of value at a uniformly chosen offset. Requires value.shape >= size.
+#         if img.shape[2] == 3:
+#             img = tf.image.rgb_to_grayscale(img)
+#         return img
+#
+#     # 1) Decode the path
+#     if isinstance(image_file, bytes):
+#         image_file = image_file.decode('utf-8')
+#
+#     # 2) Read the image
+#     img = cv2.imread(image_file)
+#     if len(img.shape) < 3:
+#         img = np.expand_dims(img, axis=-1)
+#     img = _preprocessing_func(image=img)
+#     img = tf.cast(img, tf.float32)
+#
+#     # 3) Get the label
+#     label = None
+#     if get_label:
+#         label = tf.strings.split(image_file, "/")[-1]
+#
+#         label = tf.strings.substr(label, pos=0, len=1)
+#         label = tf.strings.to_number(label, out_type=tf.float32)
+#         label = tf.cast(label, tf.float32)
+#     return img, label
 
 
 def configure_shapes(images, labels, shape):
@@ -67,7 +68,7 @@ def get_dataset_from_tiff(input_image_shape, batch_size, validation_split):
     n_val = val_ds.cardinality().numpy()
 
     # 2.1) Create the train dataset
-    train_ds = train_ds.map(lambda x: tf.numpy_function(partial(load_image, image_shape=input_image_shape, get_label=True), [x], (tf.float32, tf.float32)))
+    train_ds = train_ds.map(lambda x: tf.numpy_function(partial(get_crop, image_shape=input_image_shape, get_label=True), [x], (tf.float32, tf.float32)))
 
 
     train_ds = train_ds.map(partial(configure_shapes, shape=input_image_shape))
@@ -77,7 +78,7 @@ def get_dataset_from_tiff(input_image_shape, batch_size, validation_split):
     train_ds = train_ds.repeat()
 
     # 2.2) Create the validation dataset
-    val_ds = val_ds.map(lambda x: tf.numpy_function(partial(load_image, image_shape=input_image_shape, get_label=True), [x], (tf.float32, tf.float32)))
+    val_ds = val_ds.map(lambda x: tf.numpy_function(partial(get_crop, image_shape=input_image_shape, get_label=True), [x], (tf.float32, tf.float32)))
     val_ds = val_ds.map(partial(configure_shapes, shape=input_image_shape))
     val_ds = val_ds.batch(4)
     val_ds = val_ds.shuffle(buffer_size=1000)
@@ -119,7 +120,7 @@ class KNNDataLoader(tf.keras.utils.Sequence):
         N_btch = []
         # I) For each file in the files chosen for it
         for X_file_idx in knn_batch_df.index:
-            X, _ = load_image(
+            X, _ = image_funcs.get_crop(
                 image_file=knn_batch_df.loc[X_file_idx, 'file'],
                 image_shape=self.image_shape,
                 get_label=False
@@ -135,7 +136,7 @@ class KNNDataLoader(tf.keras.utils.Sequence):
                 N_X_files.pop(0)
                 N_X = []
                 for N_X_file in N_X_files:
-                    ngbr, _ = load_image(
+                    ngbr, _ = image_funcs.get_crop(
                         image_file=N_X_file,
                         image_shape=self.image_shape,
                         get_label=False
@@ -146,7 +147,7 @@ class KNNDataLoader(tf.keras.utils.Sequence):
                 N_btch.append(N_X)
             else:
                 # - If we are interensted only in the closest neighbor
-                ngbr, _ = load_image(
+                ngbr, _ = image_funcs.get_crop(
                     image_file=knn_batch_df.loc[X_file_idx, 'neighbors'][0][1],
                     image_shape=self.image_shape,
                     get_label=False

@@ -1,6 +1,7 @@
 import os
 import yaml
 import io
+import shutil
 import logging
 import threading
 import argparse
@@ -276,7 +277,6 @@ def train_model(model_configs: dict, data: dict, callback_configs: dict, compile
         shuffle=fit_configs.get('shuffle'),
         callbacks=callbacks
     )
-    tensor_board_th.join()
     return model
 
 

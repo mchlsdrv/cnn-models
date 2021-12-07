@@ -148,31 +148,9 @@ if __name__ == '__main__':
         image_shape=input_image_shape,
         train_batch_size=args.classifier_batch_size,
         val_batch_size=int(args.classifier_batch_size*args.classifier_validation_split),
-        crops_per_batch=classifier_train_steps_per_epoch,
+        crops_per_batch=args.classifier_train_steps_per_epoch,
         shuffle=True
     )
-    # train_idxs, val_idxs = aux_funcs.get_train_val_idxs(
-    #     n_items=priors_knn_df.shape[0],
-    #     val_prop=args.classifier_validation_split
-    # )
-    #
-    # train_knn_data_set = data_funcs.KNNDataLoader(
-    #     knn_image_files=priors_knn_df.loc[train_idxs].reset_index(drop=True),
-    #     k=1,
-    #     image_shape=input_image_shape,
-    #     batch_size=args.classifier_batch_size,
-    #     crops_per_batch=args.classifier_train_steps_per_epoch,
-    #     shuffle=True
-    # )
-    #
-    # val_knn_data_set = data_funcs.KNNDataLoader(
-    #     knn_image_files=priors_knn_df.loc[val_idxs].reset_index(drop=True),
-    #     k=1,
-    #     image_shape=input_image_shape,
-    #     batch_size=2, #int(args.classifier_batch_size*args.classifier_validation_split),
-    #     crops_per_batch=args.classifier_train_steps_per_epoch,
-    #     shuffle=True
-    # )
 
     if isinstance(logger, logging.Logger):
         logger.info(f'- Training the classifier ...')
