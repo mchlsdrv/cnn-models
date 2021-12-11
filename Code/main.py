@@ -1,24 +1,24 @@
 import os
 import datetime
-import argparse
-from pathlib import Path
-import yaml
-import numpy as np
+import pathlib
 import pandas as pd
-from pathlib import Path
 import tensorflow as tf
 from tensorflow import keras
-from aux_code import aux_funcs
-from data_loaders import data_funcs
-from models import cnn
+from utils.general_utils import aux_funcs
+from utils.algo_utils import algo_funcs
+from utils.data_utils import data_funcs
+from utils.train_utils import train_funcs
+from utils.image_utils import image_funcs, preprocessing_funcs
 from losses import clustering_losses
+import logging
+import logging.config
+
 from augmentations import clustering_augmentations
-from callbacks import clustering_callbacks
 from configs.general_configs import (
     CONFIGS_DIR_PATH,
     TRAIN_DATA_DIR_PATH,
+    TEST_DATA_DIR_PATH,
     OUTPUT_DIR_PATH,
-    # LOG_DIR_PATH
 )
 
 '''
@@ -31,183 +31,200 @@ by changing the value of TF_CPP_MIN_LOG_LEVEL:
     3 = INFO, WARNING, and ERROR messages are not printed
 '''
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-TRAIN = True
-
-def get_model(purpose, model_type, number_of_classes, crop_size, priors=None):
-    input_image_shape = (crop_size, crop_size, 1)
-    model = None
-    if model_type == 'conv_net':
-        model = cnn.ConvModel(input_shape=input_image_shape)
-    elif model_type == 'res_net_x18':
-        resnet_configs_file_path = CONFIGS_DIR_PATH / 'res_net_x18_configs.yml'
-        with resnet_configs_file_path.open(mode='r') as config_file:
-            resnet_configs = yaml.safe_load(config_file)
-        resnet_configs['input_image_shape'] = input_image_shape
-        resnet_configs['number_of_classes'] = number_of_classes
-        if purpose == 'feature_extraction':
-            model = cnn.FeatureExtractionResNet(
-                net_configs=resnet_configs,
-                augmentations=clustering_augmentations.augmentations,
-                similarity_loss=clustering_losses.cosine_similarity_loss,
-            )
-        elif purpose == 'labelling':
-            model = cnn.LabellingResNet(
-                net_configs=resnet_configs,
-                priors=priors,
-                augmentations=clustering_augmentations.augmentations,
-            )
-
-    elif args.feature_extractor_net == 'res_net_x34':
-        resnet_configs_file_path = CONFIGS_DIR_PATH / 'res_net_x34_configs.yml'
-        with resnet_configs_file_path.open(mode='r') as config_file:
-            resnet_configs = yaml.safe_load(config_file)
-        resnet_configs['input_image_shape'] = input_image_shape
-        resnet_configs['number_of_classes'] = number_of_classes
-
-        if purpose == 'feature_extraction':
-            model = cnn.FeatureExtractionResNet(
-                net_configs=resnet_configs,
-                augmentations=clustering_augmentations.augmentations,
-                similarity_loss=clustering_losses.cosine_similarity_loss,
-            )
-        elif purpose == 'labelling':
-            model = cnn.LabellingResNet(
-                net_configs=resnet_configs,
-                priors=priors,
-                augmentations=clustering_augmentations.augmentations,
-            )
-    return model
+TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+LEARNING_RATE = 1e-4
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(dest='feature_extractor_net', type=str, choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to extract the features from the images')
-    parser.add_argument(dest='labeller_net', type=str, choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to label the samples')
-    parser.add_argument(dest='latent_space_dims', type=int, help='The dimension of the vectors in the latent space which represent the encodeing of each image')
-    parser.add_argument(dest='number_of_classes', type=int, help='The number of label classes')
-    parser.add_argument(dest='epochs', type=int, help='Number of epochs to train the network')
-    parser.add_argument(dest='steps_per_epoch', type=int, help='Number of iterations that will be performed on each epoch')
-    parser.add_argument('--crop_size', type=int, choices=[32, 64, 128, 256, 512], default=128, help='The size of the images that will be used for network training and inference. If not specified - the image size will be determined by the value in general_configs.py file.')
-    parser.add_argument('--batch_size', type=int, default=32, help='The number of samples in each batch')
-    parser.add_argument('--validation_split', type=float, default=0.1, help='The proportion of the data to be used for validation (should be in range [0.0, 1.0])')
-    parser.add_argument('--validation_steps_proportion', type=float, default=0.5, help='The proportion of validation steps in regards to the training steps (should be in range [0.0, 1.0])')
-    parser.add_argument('--gpu_id', type=int, choices=[gpu_id for gpu_id in range(len(tf.config.list_physical_devices('GPU')))], default=0 if len(tf.config.list_physical_devices('GPU')) > 0 else -1, help='The ID of the GPU (if there is any) to run the network on (e.g., --gpu_id 1 will run the network on GPU #1 etc.)')
-    parser.add_argument('--feature_extractor_checkpoint_dir', type=str, default='', help=f'The path to the directory that contains the checkpoints of the feature extraction model')
-    parser.add_argument('--no_train_feature_extractor', default=False, action='store_true', help=f'If theres no need to train the feature extractor model')
-    parser.add_argument('--load_labeler_checkpoint_dir', type=str, default='', help=f'The path to the directory that contains the checkpoints of the labeler model')
+    parser = aux_funcs.get_arg_parcer()
     args = parser.parse_args()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
 
-    ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    current_run_dir = OUTPUT_DIR_PATH / f'{ts}'
-    if not current_run_dir.is_dir():
-        os.makedirs(current_run_dir)
+    current_run_dir = OUTPUT_DIR_PATH / f'{TS}'
+    os.makedirs(current_run_dir, exist_ok=True)
+
+    logger = aux_funcs.get_logger(
+        configs_file = CONFIGS_DIR_PATH / 'logger_configs.yml',
+        save_file = current_run_dir / f'logs.log'
+    )
+
+    if isinstance(logger, logging.Logger):
+        logger.info(tf.config.list_physical_devices('GPU'))
+
+    aux_funcs.choose_gpu(gpu_id = args.gpu_id, logger=logger)
 
     input_image_shape = (args.crop_size, args.crop_size, 1)
 
-    # 1) Build the feature extractor model
-    feat_ext_model = get_model(
-        purpose='feature_extraction',
-        model_type=args.feature_extractor_net,
-        number_of_classes=args.latent_space_dims,
-        crop_size=args.crop_size
-    )
+    priors_knn_df = None
 
-    assert feat_ext_model is not None, 'Could not build the model!'
+    if pathlib.Path(args.knn_df_path).is_file():
+        try:
+            priors_knn_df = pd.read_pickle(args.knn_df_path)
+        except Exception as err:
+            if isinstance(logger, logging.Logger):
+                logger.info(f'1.1) {err}')
+        else:
+            if isinstance(logger, logging.Logger) and priors_knn_df is not None:
+                logger.info(f'1.1) Loading the priors_knn_df...')
 
-    print(feat_ext_model.summary())
-
-    if os.path.exists(args.feature_extractor_checkpoint_dir):
-        checkpoint_dir = args.feature_extractor_checkpoint_dir
-        latest_cpt = tf.train.latest_checkpoint(checkpoint_dir)
-
-        feat_ext_model.load_weights(latest_cpt)
-
-    if not args.no_train_feature_extractor:
-        # 1) Get the data
-        train_ds, val_ds = data_funcs.get_dataset_from_tiff(
-        input_image_shape=input_image_shape,
-        batch_size=args.batch_size,
-        validation_split=args.validation_split
+    if priors_knn_df is None:
+        # - Get the dataset
+        if isinstance(logger, logging.Logger):
+            logger.info(f'1.1) No priors_knn_df file was found!')
+            logger.info(f'1.2) Feature extraction model training ...')
+            logger.info(f'- Constructing the dataset ...')
+        # - Train feature extractor
+        if isinstance(logger, logging.Logger):
+            logger.info(f'- Training the feature extractor model ...')
+        feat_ext_model, weights_loaded = aux_funcs.get_model(
+            model_name='feature_extractor',
+            model_type=args.feature_extractor_model_type,
+            number_of_classes=args.feature_extractor_latent_space_dims,
+            crop_size=args.crop_size,
+            augmentations=clustering_augmentations.image_augmentations,
+            custom_loss=clustering_losses.cosine_similarity_loss,
+            checkpoint_dir=pathlib.Path(args.feature_extractor_checkpoint_dir),
+            logger=logger
         )
+        if not args.no_train_feature_extractor:
+            train_ds, val_ds = data_funcs.get_dataset_from_tiff(
+                input_image_shape=input_image_shape,
+                batch_size=args.feature_extractor_batch_size,
+                validation_split=args.feature_extractor_validation_split
+            )
+            train_funcs.train_model(
+                model=feat_ext_model,
+                data=dict(
+                    train_dataset = train_ds,
+                    val_dataset = val_ds,
+                    X_sample = next(iter(val_ds))[0][0]
+                ),
+                callback_configs=dict(
+                    no_reduce_lr_on_plateau = args.no_reduce_lr_on_plateau_feature_extractor
+                ),
+                compile_configs=dict(
+                    loss = keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                    optimizer = keras.optimizers.Adam(learning_rate=args.feature_extractor_optimizer_lr),
+                    metrics = ['accuracy']
+                ),
+                fit_configs=dict(
+                    batch_size = args.feature_extractor_batch_size,
+                    train_epochs = args.feature_extractor_train_epochs,
+                    train_steps_per_epoch = args.feature_extractor_train_steps_per_epoch,
+                    validation_steps_proportion = args.feature_extractor_validation_steps_proportion,
+                    valdation_freq = 1,  # [1, 100, 1500, ...] - validate on these epochs
+                    shuffle = True,
+                ),
+                general_configs=dict(
+                    time_stamp = TS
+                ),
+                logger=logger
+            )
 
-        # 3) Configure callbacks
-        callbacks = clustering_callbacks.get_callbacks(
+        if isinstance(logger, logging.Logger):
+            logger.info(f'2) KNN Priors Search')
+        priors_knn_df = algo_funcs.get_priors_knn_df(
             model=feat_ext_model,
-            X=next(iter(val_ds))[0][0],
-            ts=ts
+            preprocessing_func=preprocessing_funcs.clahe_filter,
+            k=args.knn_k,
+            train_data_dir=TRAIN_DATA_DIR_PATH,
+            patch_height=args.crop_size,
+            patch_width=args.crop_size,
+            patch_optimization=args.knn_patch_optimization,
+            save_dir=current_run_dir / 'knn_priors',
+            knn_algorithm=args.knn_algorithm
         )
 
-        # 4) Compile
-        feat_ext_model.compile(
-            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            optimizer=keras.optimizers.Adam(learning_rate=1e-4),
-            metrics=['accuracy']
-        )
+    assert priors_knn_df is not None, '\'priors_knn_df\' can\'t be None!'
+    if isinstance(logger, logging.Logger):
+        logger.info(f'''
+> Priors Data Frame:
+    - Columns: {priors_knn_df.columns}
+    - Shape: {priors_knn_df.shape}
+    - Example: {priors_knn_df.loc[0]}
+    ''')
 
-        # 5) Fit feature extraction model
-        validation_steps = int(args.validation_steps_proportion * args.steps_per_epoch) if 0 < int(args.validation_steps_proportion * args.steps_per_epoch) <= args.steps_per_epoch else 1
-        feat_ext_model.fit(
-            train_ds,
-            validation_data=val_ds,
-            batch_size=args.batch_size,
-            epochs=args.epochs,
-            steps_per_epoch=args.steps_per_epoch,
-            validation_steps=validation_steps,
-            validation_freq=1,  # [1, 100, 1500, ...] - validate on these epochs
-            shuffle=True,
-            callbacks=callbacks
-        )
+    # II) Classification
+    if isinstance(logger, logging.Logger):
+        logger.info(f'3) Classifier Model Training')
+        logger.info(f'- Constructing the KNN dataset ...')
+    # 1 - Construct the dataset
+    # - Split into train and validation
+    train_knn_data_set, val_knn_data_set = data_funcs.get_knn_dataset(
+        priors_knn_df=priors_knn_df,
+        k=1,
+        val_prop=args.classifier_validation_split,
+        image_shape=input_image_shape,
+        train_batch_size=args.classifier_batch_size,
+        val_batch_size=int(args.classifier_batch_size*args.classifier_validation_split),
+        crops_per_batch=args.classifier_train_steps_per_epoch,
+        shuffle=True
+    )
 
-    priors_knn_df = aux_funcs.transform_images(images_root_dir=TRAIN_DATA_DIR_PATH, model=feat_ext_model, patch_height=args.crop_size, patch_width=args.crop_size)
-
-    X = np.array([x[0].numpy() for x in trapriors_knn_df.loc[:, 'vector'].values])
-    files = transforms_df.loc[:, 'file'].values
-
-    priors_knn_df.loc[:, 'neighbors'] = aux_funcs.get_knn_files(X=X, files=files, k=10)
-    priors_knn_df.to_pickle(current_run_dir / f'priors_knn_df.pkl')
-
-    # 3) Build the feature extractor model
-    labeller_model = get_model(
-        purpose='labelling',
-        model_type=args.labeller_net,
-        number_of_classes=args.number_of_classes,
+    if isinstance(logger, logging.Logger):
+        logger.info(f'- Training the classifier ...')
+    classifier_model, weights_loaded = aux_funcs.get_model(
+        model_name='classifier',
+        model_type=args.classifier_model_type,
+        number_of_classes=args.classifier_number_of_classes,
         crop_size=args.crop_size,
-        priors=priors_knn_df,
+        custom_loss=None,
+        augmentations=clustering_augmentations.image_augmentations,
+        checkpoint_dir=pathlib.Path(args.classifier_checkpoint_dir),
+        logger=logger
+    )
+    if not args.no_train_classifier:
+        train_funcs.train_model(
+            model=classifier_model,
+            data=dict(
+                train_dataset = train_knn_data_set,
+                val_dataset = val_knn_data_set,
+                X_sample = val_knn_data_set.get_sample()[0][0],
+            ),
+            callback_configs=dict(
+                no_reduce_lr_on_plateau = args.no_reduce_lr_on_plateau_classifier
+            ),
+            compile_configs=dict(
+                loss = clustering_losses.SCANLoss(), #keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                optimizer = keras.optimizers.Adam(learning_rate=args.classifier_optimizer_lr),
+                # metrics = ['accuracy']
+            ),
+            fit_configs=dict(
+                batch_size = args.classifier_batch_size,
+                train_epochs = args.classifier_train_epochs,
+                train_steps_per_epoch = args.classifier_train_steps_per_epoch,
+                validation_steps_proportion = args.classifier_validation_steps_proportion,
+                valdation_freq = 1,  # [1, 100, 1500, ...] - validate on these epochs
+                shuffle = True,
+            ),
+            general_configs=dict(
+                time_stamp = TS
+            ),
+            logger=logger
+        )
+
+    # 4) Classify
+    # - Train images
+    if isinstance(logger, logging.Logger):
+        logger.info(f'4) Classification')
+        logger.info(f'- Classifing train data...')
+    algo_funcs.classify(
+        model=classifier_model,
+        images_root_dir=TRAIN_DATA_DIR_PATH,
+        patch_height=args.crop_size,
+        patch_width=args.crop_size,
+        output_dir=OUTPUT_DIR_PATH / f'{TS}/classified/train',
+        logger=logger
     )
 
-
-    train_ds, val_ds = data_funcs.get_dataset_from_tiff(
-    input_image_shape=input_image_shape,
-    batch_size=args.batch_size,
-    validation_split=args.validation_split
-    )
-
-    # 3) Configure callbacks
-    callbacks = clustering_callbacks.get_callbacks(
-        model=feat_ext_model,
-        X=next(iter(val_ds))[0][0],
-        ts=ts
-    )
-
-    # 4) Compile
-    labeller_model.compile(
-        # loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        optimizer=keras.optimizers.Adam(learning_rate=1e-4),
-        metrics=['accuracy']
-    )
-
-    # 5) Fit feature extraction model
-    validation_steps = int(args.validation_steps_proportion * args.steps_per_epoch) if 0 < int(args.validation_steps_proportion * args.steps_per_epoch) <= args.steps_per_epoch else 1
-    feat_ext_model.fit(
-        train_ds,
-        validation_data=val_ds,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        steps_per_epoch=args.steps_per_epoch,
-        validation_steps=validation_steps,
-        validation_freq=1,  # [1, 100, 1500, ...] - validate on these epochs
-        shuffle=True,
-        callbacks=callbacks
+    # - Test images
+    if isinstance(logger, logging.Logger):
+        logger.info(f'- Classifing test data...')
+    algo_funcs.classify(
+        model=classifier_model,
+        images_root_dir=TEST_DATA_DIR_PATH,
+        patch_height=args.crop_size,
+        patch_width=args.crop_size,
+        output_dir=OUTPUT_DIR_PATH / f'{TS}/classified/test',
+        logger=logger
     )

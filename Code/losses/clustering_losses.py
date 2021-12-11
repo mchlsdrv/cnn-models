@@ -1,6 +1,11 @@
 import tensorflow as tf
 from tensorflow import keras
 
+from configs.general_configs import (
+    EPSILON,
+)
+
+
 cosine_similarity_loss = keras.losses.CosineSimilarity(
     axis=-1,
     name='cosine_similarity'
@@ -10,25 +15,18 @@ cosine_similarity_loss = keras.losses.CosineSimilarity(
 class SCANLoss(keras.losses.Loss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.epsilon = 1e-7
 
-    def call(self, y_true, y_pred):
-        y_pred = tf.convert_to_tensor(y_pred)
-        y_true = tf.cast(y_true, y_pred.dtype)
-        btch_sz = y_true.shape[0]
-        norm = tf.cast(tf.constant(1/btch_sz), y_true.dtype)
+    def call(self, phi_X, phi_ngbrs):
+        consistency_loss = entropy_loss = 0.0
+        dot_prod = tf.reduce_sum(tf.multiply(phi_X, phi_ngbrs), axis=1)
+        consistency_loss = tf.reduce_mean(tf.math.log(dot_prod + EPSILON))
 
-        # I) The consistancy
-        dot_prod = tf.tensordot(y_true, tf.transpose(y_pred), axes=1)
-        diag_mask = tf.cast(tf.eye(btch_sz), dot_prod.dtype)
-        btch_dot_prod = tf.math.reduce_sum(dot_prod * diag_mask, 0)
-        btch_dot_prod_log = tf.math.log(btch_dot_prod + self.epsilon)
-        mean_btch_dot_prod_log = norm * btch_dot_prod_log
+        # IV) Calculate the entropy loss
+        mean_class_probs = tf.reduce_mean(phi_X, axis=0)
+        entropy = mean_class_probs * tf.math.log(mean_class_probs + EPSILON)
+        entropy_loss = tf.reduce_sum(entropy)
+        entropy_loss = tf.cast(entropy_loss, consistency_loss.dtype)
 
-        # II) The entropy
-        mean_class_prob = norm * tf.reduce_sum(y_pred, 0)
-        mean_entropy = tf.math.reduce_sum(mean_class_prob * tf.math.log(mean_class_prob + self.epsilon))
-
-        loss = -mean_btch_dot_prod_log + mean_entropy
+        loss = -consistency_loss + entropy_loss
 
         return loss
