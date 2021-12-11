@@ -5,7 +5,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 import matplotlib.pyplot as plt
-from utils import aux_funcs
+from utils.general_utils import aux_funcs
+from utils.image_utils import image_funcs
 
 
 from configs.general_configs import (
@@ -121,11 +122,7 @@ class ConvLayerVis(keras.callbacks.Callback):
                 fig.suptitle(f'{layer_name}')
 
                 with self.file_writer.as_default():
-                    tf.summary.image(f'{layer_name} Feature Maps', aux_funcs.get_image_from_figure(figure=fig), step=epoch)
-
-            # if self.tensor_board_th is None:
-            #     print(f'Launching a Tensor Board thread on logdir: \'{self.log_dir}\'...')
-            #     self.tensor_board_th = aux_funcs.launch_tensor_board(logdir=self.log_dir)
+                    tf.summary.image(f'{layer_name} Feature Maps', image_funcs.get_image_from_figure(figure=fig), step=epoch)
 
 
 def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):

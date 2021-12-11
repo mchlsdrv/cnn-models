@@ -1,10 +1,8 @@
 import tensorflow as tf
-from functools import partial
 from tensorflow import keras
 from tensorflow.keras import layers
-import numpy as np
 import pandas as pd
-from losses.clustering_losses import SCANLoss
+
 
 class ConvModel(keras.Model):
     def __init__(self, model_name: str, input_shape: tuple):
