@@ -45,8 +45,8 @@ def get_priors_knn_df(model, preprocessing_func, k: int, train_data_dir: pathlib
     return priors_knn_df
 
 
-def classify(model, images_root_dir: pathlib.Path, patch_height: int, patch_width: int, output_dir: pathlib.Path, logger: logging.Logger = None):
-    cls_df = image_funcs.get_mean_image_transforms(images_root_dir=images_root_dir, model=model, patch_height=patch_height, patch_width=patch_width)
+def classify(model, preprocessing_func, images_root_dir: pathlib.Path, patch_height: int, patch_width: int, output_dir: pathlib.Path, logger: logging.Logger = None):
+    cls_df = image_funcs.get_mean_image_transforms(images_root_dir=images_root_dir, model=model, preprocessing_func=preprocessing_func, patch_height=patch_height, patch_width=patch_width)
     for idx in cls_df.index: #loc[:, 'file']:
         file = cls_df.loc[idx, 'file']
         pred = cls_df.loc[idx, 'image_mean_transform']
@@ -64,4 +64,3 @@ def classify(model, images_root_dir: pathlib.Path, patch_height: int, patch_widt
         # - Save the image file in the relevant directory
         file_name = file.split('/')[-1]
         shutil.copy(file, cls_dir / f'{file_name}')
-

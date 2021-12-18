@@ -4,9 +4,9 @@ from matplotlib import pyplot as plt
 
 DEBUG = False
 DATA_DIR_PATH = Path('../Data')
-TRAIN_DATA_DIR_PATH = DATA_DIR_PATH / 'Test Images - 2 classes/train/10,000x - 89'
-TEST_DATA_DIR_PATH = DATA_DIR_PATH / 'Test Images - 2 classes/test/10,000x - 10'
-OUTPUT_DIR_PATH = Path('../Output')
+TRAIN_DATA_DIR = str(DATA_DIR_PATH / 'antrax_strep_small_med_large/S1/medium/train')
+TEST_DATA_DIR = str(DATA_DIR_PATH / 'antrax_strep_small_med_large/S1/medium/test')
+OUTPUT_DIR = '../Output/antrax_strep_medium'
 CONFIGS_DIR_PATH = Path('./configs')
 
 # CONSTANTS

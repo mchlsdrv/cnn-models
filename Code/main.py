@@ -16,9 +16,6 @@ import logging.config
 from augmentations import clustering_augmentations
 from configs.general_configs import (
     CONFIGS_DIR_PATH,
-    TRAIN_DATA_DIR_PATH,
-    TEST_DATA_DIR_PATH,
-    OUTPUT_DIR_PATH,
 )
 
 '''
@@ -40,7 +37,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    current_run_dir = OUTPUT_DIR_PATH / f'{TS}'
+    current_run_dir = pathlib.Path(args.output_dir) / f'{TS}'
     os.makedirs(current_run_dir, exist_ok=True)
 
     logger = aux_funcs.get_logger(
@@ -88,6 +85,7 @@ if __name__ == '__main__':
         )
         if not args.no_train_feature_extractor:
             train_ds, val_ds = data_funcs.get_dataset_from_tiff(
+                data_dir_path=pathlib.Path(args.train_data_dir),
                 input_image_shape=input_image_shape,
                 batch_size=args.feature_extractor_batch_size,
                 validation_split=args.feature_extractor_validation_split
@@ -100,6 +98,7 @@ if __name__ == '__main__':
                     X_sample = next(iter(val_ds))[0][0]
                 ),
                 callback_configs=dict(
+                    output_dir_path=pathlib.Path(args.output_dir),
                     no_reduce_lr_on_plateau = args.no_reduce_lr_on_plateau_feature_extractor
                 ),
                 compile_configs=dict(
@@ -127,7 +126,7 @@ if __name__ == '__main__':
             model=feat_ext_model,
             preprocessing_func=preprocessing_funcs.clahe_filter,
             k=args.knn_k,
-            train_data_dir=TRAIN_DATA_DIR_PATH,
+            train_data_dir=pathlib.Path(args.train_data_dir),
             patch_height=args.crop_size,
             patch_width=args.crop_size,
             patch_optimization=args.knn_patch_optimization,
@@ -182,6 +181,7 @@ if __name__ == '__main__':
                 X_sample = val_knn_data_set.get_sample()[0][0],
             ),
             callback_configs=dict(
+                output_dir_path=pathlib.Path(args.output_dir),
                 no_reduce_lr_on_plateau = args.no_reduce_lr_on_plateau_classifier
             ),
             compile_configs=dict(
@@ -210,10 +210,11 @@ if __name__ == '__main__':
         logger.info(f'- Classifing train data...')
     algo_funcs.classify(
         model=classifier_model,
-        images_root_dir=TRAIN_DATA_DIR_PATH,
+        preprocessing_func=preprocessing_funcs.clahe_filter,
+        images_root_dir=pathlib.Path(args.train_data_dir),
         patch_height=args.crop_size,
         patch_width=args.crop_size,
-        output_dir=OUTPUT_DIR_PATH / f'{TS}/classified/train',
+        output_dir=pathlib.Path(args.output_dir) / f'{TS}/classified/train',
         logger=logger
     )
 
@@ -222,9 +223,10 @@ if __name__ == '__main__':
         logger.info(f'- Classifing test data...')
     algo_funcs.classify(
         model=classifier_model,
-        images_root_dir=TEST_DATA_DIR_PATH,
+        preprocessing_func=preprocessing_funcs.clahe_filter,
+        images_root_dir=pathlib.Path(args.test_data_dir),
         patch_height=args.crop_size,
         patch_width=args.crop_size,
-        output_dir=OUTPUT_DIR_PATH / f'{TS}/classified/test',
+        output_dir=pathlib.Path(args.output_dir) / f'{TS}/classified/test',
         logger=logger
     )

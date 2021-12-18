@@ -10,7 +10,6 @@ from utils.image_utils import image_funcs
 
 
 from configs.general_configs import (
-    OUTPUT_DIR_PATH,
     # - Early Stopping
     EARLY_STOPPING_MONITOR,
     EARLY_STOPPING_PATIENCE,
@@ -125,13 +124,13 @@ class ConvLayerVis(keras.callbacks.Callback):
                     tf.summary.image(f'{layer_name} Feature Maps', image_funcs.get_image_from_figure(figure=fig), step=epoch)
 
 
-def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):
+def get_callbacks(model, X, ts, output_dir_path, no_reduce_lr_on_plateau=False):
     callbacks = [
         # -------------------
         # Built-in  callbacks
         # -------------------
         keras.callbacks.TensorBoard(
-            log_dir=OUTPUT_DIR_PATH / f'{ts}/logs',
+            log_dir=output_dir_path / f'{ts}/logs',
             write_graph=TENSOR_BOARD_WRITE_GRAPH,
             write_images=TENSOR_BOARD_WRITE_IMAGES,
             write_steps_per_second=TENSOR_BOARD_WRITE_STEPS_PER_SECOND,
@@ -150,7 +149,7 @@ def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):
         tf.keras.callbacks.TerminateOnNaN(),
 
         tf.keras.callbacks.ModelCheckpoint(
-            filepath=(OUTPUT_DIR_PATH / f'{ts}/checkpoints/{model.model_name}') / 'cp-{epoch:04d}.ckpt',
+            filepath=(output_dir_path / f'{ts}/checkpoints/{model.model_name}') / 'cp-{epoch:04d}.ckpt',
             verbose=MODEL_CHECKPOINT_VERBOSE,
             save_weights_only=MODEL_CHECKPOINT_SAVE_WEIGHTS_ONLY,
             save_freq=MODEL_CHECKPOINT_CHECKPOINT_FREQUENCY
@@ -167,7 +166,7 @@ def get_callbacks(model, X, ts, no_reduce_lr_on_plateau=False):
                 figsize=CONV_VIS_LAYER_FIG_SIZE,
                 cmap=CONV_VIS_LAYER_CMAP,
              ),
-            log_dir=f'{OUTPUT_DIR_PATH}/{ts}/logs/train',
+            log_dir=f'{output_dir_path}/{ts}/logs/train',
             log_interval=CONV_VIS_LAYER_LOG_INTERVAL
         )
     tb_th = conv_layer_vis_cb.tensorboard_th

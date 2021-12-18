@@ -1,13 +1,12 @@
+import os
 import numpy as np
 import copy
 import pandas as pd
+import pathlib
 import tensorflow as tf
 from functools import partial
 from utils.train_utils import train_funcs
 from utils.image_utils import image_funcs
-from configs.general_configs import (
-    TRAIN_DATA_DIR_PATH,
-)
 
 
 def configure_shapes(images, labels, shape):
@@ -24,9 +23,22 @@ def get_val_ds(dataset, validation_split):
     return dataset.take(n_val)
 
 
-def get_dataset_from_tiff(input_image_shape, batch_size, validation_split):
+def rename_files(files_dir_path: pathlib.Path):
+    # 1) Rename the files to have consequent name
+    idx = 1
+    for root, folders, files in os.walk(files_dir_path):
+        for file in files:
+            file_type = file.split('.')[-1]
+            os.rename(f'{root}/{file}', f'{root}/{idx}.{file_type}')
+            idx += 1
+
+
+def get_dataset_from_tiff(data_dir_path, input_image_shape, batch_size, validation_split):
     # 1) Create the global dataset
-    train_ds = tf.data.Dataset.list_files(str(TRAIN_DATA_DIR_PATH / '*.tiff'))
+    # - Rename the fies to have running index as the name
+    rename_files(files_dir_path=data_dir_path)
+
+    train_ds = tf.data.Dataset.list_files(str(data_dir_path / '*.tiff'))
     n_samples = train_ds.cardinality().numpy()
     print(f'- Number of train samples: {n_samples}')
 

@@ -11,6 +11,9 @@ from sklearn.neighbors import NearestNeighbors
 from models import cnn
 from utils.image_utils import image_funcs
 from configs.general_configs import (
+    TRAIN_DATA_DIR,
+    TEST_DATA_DIR,
+    OUTPUT_DIR,
     CONFIGS_DIR_PATH,
 )
 
@@ -178,10 +181,13 @@ def get_arg_parcer():
     # FLAGS
     # a) General parameters
     parser.add_argument('--gpu_id', type=int, choices=[gpu_id for gpu_id in range(-1, len(tf.config.list_physical_devices('GPU')))], default=-1 if len(tf.config.list_physical_devices('GPU')) > 0 else -1, help='The ID of the GPU (if there is any) to run the network on (e.g., --gpu_id 1 will run the network on GPU #1 etc.)')
+    parser.add_argument('--train_data_dir', type=str, default=TRAIN_DATA_DIR, help='The path to the train data directory')
+    parser.add_argument('--test_data_dir', type=str, default=TEST_DATA_DIR, help='The path to the test data directory')
+    parser.add_argument('--output_dir', type=str, default=OUTPUT_DIR, help='The path to the directory where the outputs will be placed')
     parser.add_argument('--crop_size', type=int, default=128, help='The size of the images that will be used for network training and inference. If not specified - the image size will be determined by the value in general_configs.py file.')
 
     # b) Feature extractor network
-    parser.add_argument('--feature_extractor_model_type', type=str, default='res_net_x18', choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to extract the features from the images')
+    parser.add_argument('--feature_extractor_model_type', type=str, default='res_net_x34', choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to extract the features from the images')
     parser.add_argument('--feature_extractor_latent_space_dims', type=int, default=256, help='The dimension of the vectors in the latent space which represent the encodeing of each image')
     parser.add_argument('--feature_extractor_train_epochs', type=int, default=100, help='Number of epochs to train the feature extractor network')
     parser.add_argument('--feature_extractor_train_steps_per_epoch', type=int, default=1000, help='Number of iterations that will be performed on each epoch for the featrue extractor network')
@@ -200,7 +206,7 @@ def get_arg_parcer():
     parser.add_argument('--knn_df_path', type=str, default='', help=f'The path to the KNN data frame file')
 
     # d) Classifier network
-    parser.add_argument('--classifier_model_type', type=str, default='res_net_x18', choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to classify the samples')
+    parser.add_argument('--classifier_model_type', type=str, default='res_net_x34', choices=['conv_net', 'res_net_x18', 'res_net_x34'], help='The network which will be built to classify the samples')
     parser.add_argument('--classifier_number_of_classes', type=int, default=2, help='The number of classes to assign to the samples')
     parser.add_argument('--classifier_train_epochs', type=int, default=100, help='Number of epochs to train the classifier network')
     parser.add_argument('--classifier_train_steps_per_epoch', type=int, default=1000, help='Number of iterations that will be performed on each epoch for the classifier network')

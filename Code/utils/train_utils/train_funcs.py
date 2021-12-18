@@ -18,6 +18,7 @@ def train_model(model, data: dict, callback_configs: dict, compile_configs: dict
         model=model,
         X=data.get('X_sample'),
         ts=general_configs.get('time_stamp'),
+        output_dir_path=callback_configs.get('output_dir_path'),
         no_reduce_lr_on_plateau=callback_configs.get('no_reduce_lr_on_plateau')
     )
 

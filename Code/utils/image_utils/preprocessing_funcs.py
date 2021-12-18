@@ -2,8 +2,8 @@ import numpy as np
 import cv2
 
 
-CLAHE_CLIP_LIMIT = 0.0
-CLAHE_TILE_GRID_SIZE = (100, 100)
+CLAHE_CLIP_LIMIT = 2.0
+CLAHE_TILE_GRID_SIZE = (8, 8)
 BAR_HEIGHT = 70
 
 
@@ -23,4 +23,3 @@ def clahe_filter(image):
     if len(img.shape) < 3:
         img = np.expand_dims(img, axis=-1)
     return img
-
